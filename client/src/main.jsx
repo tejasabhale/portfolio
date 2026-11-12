@@ -6,7 +6,7 @@ import SmoothScroll from "./components/ui/SmoothScroll.jsx";
 import ScrollToTop from "./components/ui/ScrollToTop.jsx";
 
 createRoot(document.getElementById("root")).render(
-  <BrowserRouter basename={import.meta.env.BASE_URL}>
+  <BrowserRouter>
     <SmoothScroll />
     <ScrollToTop />
     <App />
