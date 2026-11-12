@@ -11,7 +11,7 @@ gsap.registerPlugin(ScrollTrigger);
 /* ------------------------------------------------------------------ */
 const NAME = "Tejas Abhale";
 // Put tejas-portrait.jpg in your /public folder
-const PORTRAIT_SRC = "/tejas-portrait.png";
+const PORTRAIT_SRC = `${import.meta.env.BASE_URL}tejas-portrait.png`;
 const ORANGE = "#e94f25";
 
 // Where the face sits in your photo (0–1, measured from left / top).
