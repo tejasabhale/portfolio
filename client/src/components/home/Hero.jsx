@@ -371,6 +371,8 @@ function PortraitCanvas({ src }) {
         resize();
         const ro = new ResizeObserver(resize);
         ro.observe(mount);
+        window.addEventListener("resize", resize);
+        window.addEventListener("orientationchange", resize);
 
         const revealTween = reduceMotion
             ? null
@@ -382,7 +384,14 @@ function PortraitCanvas({ src }) {
             : gsap.to(uniforms.uLife, { value: 1, duration: 2, ease: "power1.inOut", delay: 3.4 });
 
         let visible = true;
-        const io = new IntersectionObserver(([en]) => (visible = en.isIntersecting), { threshold: 0 });
+        const io = new IntersectionObserver(
+            ([en]) => {
+                visible = en.isIntersecting;
+                // coming back into view (e.g. after "scroll to top"): re-read the real size so the framing is exact
+                if (visible) resize();
+            },
+            { threshold: 0 }
+        );
         io.observe(mount);
 
         // cursor parallax target (-1..1 across the portrait)
@@ -425,6 +434,8 @@ function PortraitCanvas({ src }) {
             window.removeEventListener("pointerleave", onLeave);
             io.disconnect();
             ro.disconnect();
+            window.removeEventListener("resize", resize);
+            window.removeEventListener("orientationchange", resize);
             material.dispose();
             if (geo) geo.dispose();
             renderer.dispose();
@@ -576,7 +587,7 @@ export default function Hero() {
 
             {/* dotted portrait (Three.js) */}
             <div
-                className="relative z-0 h-[44vh] w-full shrink-0 md:absolute md:bottom-0 md:right-0 md:h-[94vh] md:w-[62vw] md:max-w-[960px]"
+                className="relative z-0 aspect-square max-h-[52vh] w-full shrink-0 md:absolute md:bottom-0 md:right-0 md:aspect-auto md:h-[94vh] md:max-h-none md:w-[62vw] md:max-w-[960px]"
                 role="img"
                 aria-label={`Portrait of ${NAME}, drawn as a field of dots`}
             >

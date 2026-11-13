@@ -1,1 +1,77 @@
 @import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/*  Base                                                               */
+/* ------------------------------------------------------------------ */
+:root {
+  --orange: #e94f25;
+  --ink: #f3efe8;
+  --track: #080808;
+  color-scheme: dark;
+}
+
+html {
+  background: #000;
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgba(233, 79, 37, 0.5);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Scrollbar – thin, same dotted language as the rest of the site     */
+/* ------------------------------------------------------------------ */
+
+/* Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+/* track: faint dot field */
+::-webkit-scrollbar-track {
+  background-color: var(--track);
+  background-image: radial-gradient(
+    circle at center,
+    rgba(243, 239, 232, 0.14) 0.8px,
+    transparent 1.1px
+  );
+  background-size: 5px 5px;
+}
+
+/* thumb: orange dot-grid fill with a dotted border */
+::-webkit-scrollbar-thumb {
+  background-color: rgba(233, 79, 37, 0.2);
+  background-image: radial-gradient(
+    circle at center,
+    rgba(233, 79, 37, 0.9) 1px,
+    transparent 1.3px
+  );
+  background-size: 3px 3px;
+  border: 1px dotted var(--orange);
+  border-radius: 999px;
+  transition: background-color 0.3s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(233, 79, 37, 0.45);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: rgba(233, 79, 37, 0.6);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--track);
+}
+
+/* Firefox (and any browser without ::-webkit-scrollbar).
+   Kept inside @supports so Chrome keeps using the dotted version above. */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--orange) var(--track);
+  }
+}
