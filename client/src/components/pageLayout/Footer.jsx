@@ -37,6 +37,33 @@ const LINKS = [
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const SERIF = { fontFamily: "'Instrument Serif', Georgia, serif" };
 
+/* ------------------------------------------------------------------ */
+/*  Dot style – same dotted look as the hero portrait, in plain CSS    */
+/* ------------------------------------------------------------------ */
+const ORANGE = "#e94f25";
+const DOT_INK = "#e6e1d9"; // dot colour for white text (slightly dimmed, like the portrait)
+
+// a field of round dots, e.g. for fills
+const dotGrid = (color, cell = 4, radius = 1.2) => ({
+  backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
+  backgroundSize: `${cell}px ${cell}px`,
+});
+
+// text drawn as dots: a dot field clipped to the letter shapes, over a faint solid fill so it stays readable
+const dotText = (dot, faint, cell = 3.5) => {
+  const r = cell * 0.37;
+  return {
+    backgroundImage: `radial-gradient(circle at center, ${dot} ${r}px, transparent ${r + 0.35}px), linear-gradient(${faint}, ${faint})`,
+    backgroundSize: `${cell}px ${cell}px, 100% 100%`,
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    color: "transparent",
+  };
+};
+const textInk = (cell) => dotText(DOT_INK, "rgba(230,225,217,0.26)", cell);
+const textAccent = (cell) => dotText(ORANGE, "rgba(233,79,37,0.30)", cell);
+
 export default function Footer() {
   // same fonts as the other sections – only added once
   useEffect(() => {
@@ -59,18 +86,30 @@ export default function Footer() {
 
   return (
     <footer
-      className="w-full border-t border-white/10 bg-black text-white"
+      className="relative w-full border-t-2 border-dotted border-[#333] bg-black text-white"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
+      {/* faint dot field, fading out toward the top edge */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          ...dotGrid("rgba(243,239,232,0.08)", 22, 1.2),
+          WebkitMaskImage: "linear-gradient(to top, #000, transparent)",
+          maskImage: "linear-gradient(to top, #000, transparent)",
+        }}
+      />
+
       {/* name left, icons only on the right – same on every screen size */}
-      <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:py-4 lg:px-10">
+      <div className="relative z-10 mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:py-4 lg:px-10">
         {/* name */}
         <p
-          className="flex min-w-0 items-center gap-2 text-lg leading-none tracking-[-0.01em] text-[#f3efe8] sm:gap-2.5 sm:text-xl"
+          className="flex min-w-0 items-center gap-2 text-lg leading-none tracking-[-0.01em] sm:gap-2.5 sm:text-xl"
           style={SERIF}
         >
           <span className="truncate">
-            {first} <span className="italic">{rest.join(" ")}</span>
+            <span style={textInk(2.5)}>{first} </span>
+            <span className="italic" style={textAccent(2.5)}>{rest.join(" ")}</span>
           </span>
         </p>
 
@@ -85,7 +124,7 @@ export default function Footer() {
                   aria-label={label}
                   title={label}
                   {...(opensNewTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className="flex items-center rounded-full p-2.5 text-white/55 transition-colors duration-300 hover:text-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:p-3"
+                  className="flex items-center rounded-full border-2 border-dotted border-transparent p-2.5 text-white/55 transition-colors duration-300 hover:border-[#e94f25] hover:bg-[#e94f25]/15 hover:text-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:p-3"
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0 sm:h-4 sm:w-4" strokeWidth={1.6} aria-hidden="true" />
                 </a>
@@ -100,7 +139,8 @@ export default function Footer() {
               onClick={scrollToTop}
               aria-label="Scroll to top"
               title="Back to top"
-              className="flex items-center rounded-full border border-white/15 p-2 text-white/55 transition-colors duration-300 hover:border-[#e94f25] hover:text-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:p-2.5"
+              className="flex cursor-pointer items-center rounded-full border-2 border-dotted border-[#3a3a3a] p-2 text-white/55 transition-colors duration-300 hover:border-[#e94f25] hover:bg-[#e94f25]/20 hover:text-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:p-2.5"
+              style={dotGrid("rgba(243,239,232,0.1)", 4, 0.9)}
             >
               <ArrowUp className="h-[18px] w-[18px] shrink-0 sm:h-4 sm:w-4" strokeWidth={1.6} aria-hidden="true" />
             </button>

@@ -84,27 +84,70 @@ const TASKS = {
     4: { t: "Set up CI pipeline", tag: "DEV" },
     5: { t: "Review pull request", tag: "DEV" },
     6: { t: "Ship v1.0", tag: "RELEASE" },
+    7: { t: "Add dark mode", tag: "UI" },
+    8: { t: "Update dependencies", tag: "DEV" },
 };
-const INITIAL_COLS = [[1, 2, 3], [4], [5, 6]];
+const INITIAL_COLS = [[1, 2, 3], [4, 7], [5, 6, 8]];
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const SERIF = { fontFamily: "'Instrument Serif', Georgia, serif" };
 
 /* ------------------------------------------------------------------ */
+/*  Dot style – same dotted look as the hero portrait, in plain CSS    */
+/* ------------------------------------------------------------------ */
+const ORANGE = "#e94f25";
+const DOT_INK = "#e6e1d9"; // dot colour for white text (slightly dimmed, like the portrait)
+
+// a field of round dots, e.g. for fills
+const dotGrid = (color, cell = 4, radius = 1.2) => ({
+    backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
+    backgroundSize: `${cell}px ${cell}px`,
+});
+
+// text drawn as dots: a dot field clipped to the letter shapes, over a faint solid fill so it stays readable
+const dotText = (dot, faint, cell = 3.5) => {
+    const r = cell * 0.37;
+    return {
+        backgroundImage: `radial-gradient(circle at center, ${dot} ${r}px, transparent ${r + 0.35}px), linear-gradient(${faint}, ${faint})`,
+        backgroundSize: `${cell}px ${cell}px, 100% 100%`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+    };
+};
+const textInk = (cell) => dotText(DOT_INK, "rgba(230,225,217,0.26)", cell);
+const textAccent = (cell) => dotText(ORANGE, "rgba(233,79,37,0.30)", cell);
+
+// true on tablets / desktops – used to pick a dot size that suits the text size
+function useIsWide() {
+    const [wide, setWide] = useState(() =>
+        typeof window !== "undefined" ? window.matchMedia("(min-width: 640px)").matches : true
+    );
+    useEffect(() => {
+        const mq = window.matchMedia("(min-width: 640px)");
+        const on = () => setWide(mq.matches);
+        mq.addEventListener("change", on);
+        return () => mq.removeEventListener("change", on);
+    }, []);
+    return wide;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Browser frame + tilt                                               */
 /* ------------------------------------------------------------------ */
-function BrowserFrame({ url, children, ratio = "aspect-[10/11]" }) {
+function BrowserFrame({ url, children, ratio = "aspect-[4/3]" }) {
     return (
-        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#070707] shadow-[0_30px_90px_-35px_rgba(233,79,37,0.4)] sm:rounded-2xl">
-            <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+        <div className="relative overflow-hidden rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#101010] sm:rounded-2xl">
+            <div className="flex items-center gap-2 border-b-2 border-dotted border-[#3a3a3a] bg-[#171717] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
                 <div className="flex shrink-0 gap-1.5" aria-hidden="true">
                     {[0, 1, 2].map((i) => (
                         <span key={i} className="block h-2 w-2 rounded-full bg-white/20" />
                     ))}
                 </div>
                 <div
-                    className="mx-auto flex h-6 min-w-0 flex-1 items-center justify-center rounded-full bg-white/5 px-3 text-[10px] tracking-[0.08em] text-white/45 sm:max-w-[360px] sm:tracking-[0.12em]"
-                    style={MONO}
+                    className="mx-auto flex h-6 min-w-0 flex-1 items-center justify-center rounded-full bg-[#0a0a0a] px-3 text-[10px] tracking-[0.08em] text-white/60 sm:max-w-[360px] sm:tracking-[0.12em]"
+                    style={{ ...MONO, ...dotGrid("rgba(243,239,232,0.10)", 4, 0.9) }}
                 >
                     <span className="block min-w-0 truncate">{url}</span>
                 </div>
@@ -181,26 +224,27 @@ function KanbanPreview({ active }) {
                 {COLUMNS.map((col, ci) => (
                     <div
                         key={col.full}
-                        className="flex min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-white/[0.03] p-1.5 sm:gap-2.5 sm:rounded-xl sm:p-2.5"
+                        className="flex min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-[#141414] p-1.5 sm:gap-2.5 sm:rounded-xl sm:p-2.5"
+                        style={dotGrid("rgba(243,239,232,0.07)", 8, 1)}
                     >
                         <div className="flex items-center justify-between gap-1 px-0.5 sm:px-1" style={MONO}>
-                            <span className="min-w-0 truncate text-[9px] tracking-[0.08em] text-white/50 sm:text-[10px] sm:tracking-[0.2em]">
+                            <span className="min-w-0 truncate text-[9px] tracking-[0.08em] text-white/65 sm:text-[10px] sm:tracking-[0.2em]">
                                 <span className="sm:hidden">{col.short}</span>
                                 <span className="hidden sm:inline">{col.full}</span>
                             </span>
-                            <span className="text-[9px] text-white/30 sm:text-[10px]">{cols[ci].length}</span>
+                            <span className="text-[9px] text-white/45 sm:text-[10px]">{cols[ci].length}</span>
                         </div>
                         {cols[ci].map((id) => (
                             <motion.div
                                 key={id}
                                 layoutId={`task-${id}`}
                                 transition={{ type: "spring", stiffness: 260, damping: 28 }}
-                                className="min-w-0 rounded-md border border-white/10 bg-[#111] p-1.5 sm:rounded-lg sm:p-2.5"
+                                className="min-w-0 rounded-md border border-dotted border-[#4a4a4a] bg-[#1f1f1f] p-1.5 sm:rounded-lg sm:p-2.5"
                             >
                                 <p
                                     className={
                                         "break-words text-[10px] leading-snug sm:text-xs " +
-                                        (ci === 2 ? "text-white/45 line-through" : "text-white/85")
+                                        (ci === 2 ? "text-white/60 line-through" : "text-white/85")
                                     }
                                 >
                                     {TASKS[id].t}
@@ -229,18 +273,18 @@ function FeedList() {
             {FEED.map((f) => (
                 <div
                     key={f.n}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"
+                    className="flex items-center gap-3 rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#191919] p-3"
                 >
                     <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#e94f25] to-[#3a1208] text-sm text-white"
-                        style={SERIF}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1a0a05] text-sm text-white"
+                        style={{ ...SERIF, ...dotGrid("rgba(233,79,37,0.9)", 3.5, 1.3), textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}
                         aria-hidden="true"
                     >
                         {f.n[0]}
                     </span>
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-xs text-white/90 sm:text-sm">{f.n}</p>
-                        <p className="truncate text-[9px] tracking-[0.1em] text-white/45 sm:text-[10px] sm:tracking-[0.12em]" style={MONO}>
+                        <p className="truncate text-[9px] tracking-[0.1em] text-white/60 sm:text-[10px] sm:tracking-[0.12em]" style={MONO}>
                             {f.q} · {f.loc}
                         </p>
                     </div>
@@ -257,8 +301,8 @@ function FeedPreview({ active }) {
     return (
         <div className="flex h-full flex-col gap-3 p-3 sm:p-5">
             <div
-                className="flex h-9 shrink-0 items-center rounded-full bg-white/5 px-4 text-[10px] tracking-[0.1em] text-white/40 sm:h-8 sm:tracking-[0.12em]"
-                style={MONO}
+                className="flex h-9 shrink-0 items-center rounded-full border border-dotted border-[#4a4a4a] bg-[#1f1f1f] px-4 text-[10px] tracking-[0.1em] text-white/55 sm:h-8 sm:tracking-[0.12em]"
+                style={{ ...MONO, ...dotGrid("rgba(243,239,232,0.08)", 4, 0.9) }}
             >
                 Search crops, markets…
             </div>
@@ -267,9 +311,10 @@ function FeedPreview({ active }) {
                     <span
                         key={c}
                         className={
-                            "whitespace-nowrap rounded-full px-2.5 py-1 text-[9px] tracking-[0.1em] sm:text-[10px] sm:tracking-[0.15em] " +
-                            (i === 0 ? "bg-[#e94f25] text-white" : "border border-white/15 text-white/55")
+                            "whitespace-nowrap rounded-full border border-dotted px-2.5 py-1 text-[9px] tracking-[0.1em] sm:text-[10px] sm:tracking-[0.15em] " +
+                            (i === 0 ? "border-[#e94f25] bg-[#e94f25]/25 text-white" : "border-[#4a4a4a] text-white/60")
                         }
+                        style={i === 0 ? dotGrid("rgba(233,79,37,0.8)", 4, 1.2) : undefined}
                     >
                         {c}
                     </span>
@@ -297,7 +342,10 @@ function FeedPreview({ active }) {
 /* ------------------------------------------------------------------ */
 /*  Preview 3 – live site: a page that scrolls itself                  */
 /* ------------------------------------------------------------------ */
-const Bar = ({ className = "" }) => <span className={"block rounded-full " + className} />;
+// `dot` = fill the bar with a field of dots of that colour instead of a flat colour
+const Bar = ({ className = "", dot }) => (
+    <span className={"block rounded-full " + className} style={dot ? dotGrid(dot, 3, 0.95) : undefined} />
+);
 
 function SitePreview({ active }) {
     return (
@@ -308,33 +356,33 @@ function SitePreview({ active }) {
         >
             {/* nav */}
             <div className="flex items-center justify-between">
-                <Bar className="h-3 w-14 bg-white/70" />
+                <Bar className="h-3 w-14" dot="rgba(255,255,255,0.8)" />
                 <div className="flex items-center gap-3">
                     <Bar className="h-1.5 w-8 bg-white/25" />
                     <Bar className="h-1.5 w-8 bg-white/25" />
                     <Bar className="hidden h-1.5 w-8 bg-white/25 sm:block" />
-                    <Bar className="h-5 w-14 bg-[#e94f25]" />
+                    <Bar className="h-5 w-14" dot={ORANGE} />
                 </div>
             </div>
 
             {/* hero */}
             <div className="mt-8 sm:mt-10">
-                <Bar className="h-2 w-20 bg-[#e94f25]/70" />
-                <Bar className="mt-4 h-4 w-[78%] rounded-md bg-[#f3efe8]/85 sm:h-5" />
-                <Bar className="mt-2.5 h-4 w-[52%] rounded-md bg-[#f3efe8]/85 sm:h-5" />
+                <Bar className="h-2 w-20" dot="rgba(233,79,37,0.8)" />
+                <Bar className="mt-4 h-4 w-[78%] rounded-md sm:h-5" dot="rgba(243,239,232,0.9)" />
+                <Bar className="mt-2.5 h-4 w-[52%] rounded-md sm:h-5" dot="rgba(243,239,232,0.9)" />
                 <Bar className="mt-5 h-1.5 w-[62%] bg-white/20" />
                 <Bar className="mt-2 h-1.5 w-[48%] bg-white/20" />
                 <div className="mt-5 flex gap-2.5">
-                    <Bar className="h-6 w-20 bg-white" />
-                    <Bar className="h-6 w-20 border border-white/25" />
+                    <Bar className="h-6 w-20" dot="rgba(255,255,255,0.9)" />
+                    <Bar className="h-6 w-20 border border-dotted border-[#5a5a5a]" />
                 </div>
             </div>
 
             {/* feature cards */}
             <div className="mt-10 grid grid-cols-3 gap-2 sm:gap-3">
                 {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
-                        <Bar className="h-5 w-5 bg-[#e94f25]/60" />
+                    <div key={i} className="rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#191919] p-2.5 sm:p-3">
+                        <Bar className="h-5 w-5" dot="rgba(233,79,37,0.8)" />
                         <Bar className="mt-3 h-1.5 w-[70%] bg-white/55" />
                         <Bar className="mt-2 h-1 w-full bg-white/15" />
                         <Bar className="mt-1.5 h-1 w-[80%] bg-white/15" />
@@ -343,20 +391,23 @@ function SitePreview({ active }) {
             </div>
 
             {/* wide feature */}
-            <div className="mt-8 h-28 rounded-xl border border-white/10 bg-gradient-to-br from-[#e94f25]/25 via-transparent to-transparent sm:h-36" />
+            <div
+                className="mt-8 h-28 rounded-xl border-2 border-dotted border-[#e94f25]/50 bg-[#e94f25]/10 sm:h-36"
+                style={dotGrid("rgba(233,79,37,0.45)", 6, 1.5)}
+            />
 
             {/* stats */}
             <div className="mt-8 grid grid-cols-3 gap-3">
                 {[0, 1, 2].map((i) => (
                     <div key={i} className="flex flex-col items-center">
-                        <Bar className="h-4 w-10 rounded-md bg-[#f3efe8]/80" />
+                        <Bar className="h-4 w-10 rounded-md" dot="rgba(243,239,232,0.85)" />
                         <Bar className="mt-2 h-1 w-12 bg-white/20" />
                     </div>
                 ))}
             </div>
 
             {/* footer */}
-            <div className="mt-10 flex items-center justify-between border-t border-white/10 pt-4">
+            <div className="mt-10 flex items-center justify-between border-t-2 border-dotted border-[#3a3a3a] pt-4">
                 <Bar className="h-2.5 w-12 bg-white/40" />
                 <div className="flex gap-2">
                     <Bar className="h-1.5 w-8 bg-white/20" />
@@ -399,14 +450,15 @@ function BookingPreview({ active }) {
                     <p className="text-[9px] tracking-[0.15em] text-[#e94f25] sm:text-[10px] sm:tracking-[0.2em]" style={MONO}>
                         SAT · 7:30 PM
                     </p>
-                    <p className="mt-2 leading-[0.95] text-[#f3efe8] [font-size:clamp(1.5rem,7vw,2.5rem)] sm:[font-size:clamp(1.3rem,3.2vw,2.5rem)]" style={SERIF}>
-                        Live in <span className="italic">concert</span>
+                    <p className="mt-2 leading-[0.95] [font-size:clamp(1.5rem,7vw,2.5rem)] sm:[font-size:clamp(1.3rem,3.2vw,2.5rem)]" style={SERIF}>
+                        <span style={textInk(3)}>Live in </span>
+                        <span className="italic" style={textAccent(3)}>concert</span>
                     </p>
-                    <p className="mt-2 text-[10px] text-white/50 sm:text-xs">Open Air Arena</p>
+                    <p className="mt-2 text-[10px] text-white/65 sm:text-xs">Open Air Arena</p>
                 </div>
                 <div className="w-[42%] shrink-0 sm:w-auto">
                     <div
-                        className="mb-2 flex justify-between text-[9px] tracking-[0.1em] text-white/50 sm:text-[10px] sm:tracking-[0.15em]"
+                        className="mb-2 flex justify-between text-[9px] tracking-[0.1em] text-white/65 sm:text-[10px] sm:tracking-[0.15em]"
                         style={MONO}
                     >
                         <span>
@@ -416,24 +468,25 @@ function BookingPreview({ active }) {
                     </div>
                     <motion.div
                         animate={{
-                            backgroundColor: confirmed ? "#e94f25" : "#ffffff",
-                            color: confirmed ? "#ffffff" : "#000000",
+                            backgroundColor: confirmed ? "rgba(233,79,37,0.6)" : "rgba(255,255,255,0.14)",
+                            borderColor: confirmed ? "#e94f25" : "rgba(255,255,255,0.55)",
                         }}
                         transition={{ duration: 0.35 }}
-                        className="rounded-full py-2 text-center text-[11px] font-medium sm:text-xs"
+                        className="rounded-full border-2 border-dotted py-1.5 text-center text-[11px] font-medium text-white sm:text-xs"
+                        style={{ ...dotGrid("rgba(243,239,232,0.3)", 4, 1.1), textShadow: "0 1px 6px rgba(0,0,0,0.8)" }}
                     >
                         {confirmed ? "Booked" : "Book now"}
                     </motion.div>
                 </div>
             </div>
 
-            {/* seat map */}
+            {/* seat map – every seat is a dot */}
             <div className="flex min-h-0 flex-1 flex-col justify-center">
                 <div className="mb-1.5 h-1 rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-                <p className="mb-3 text-center text-[8px] tracking-[0.3em] text-white/35 sm:text-[9px]" style={MONO}>
+                <p className="mb-3 text-center text-[8px] tracking-[0.3em] text-white/50 sm:text-[9px]" style={MONO}>
                     STAGE
                 </p>
-                <div className="mx-auto grid w-full max-w-[420px] grid-cols-8 gap-1.5 sm:max-w-none sm:gap-1.5">
+                <div className="mx-auto grid w-full max-w-[280px] grid-cols-8 gap-1.5 sm:max-w-none sm:gap-2">
                     {Array.from({ length: SEAT_COLS * SEAT_ROWS }, (_, i) => {
                         const taken = TAKEN.has(i);
                         const sel = selected.has(i);
@@ -441,17 +494,13 @@ function BookingPreview({ active }) {
                             <motion.span
                                 key={i}
                                 animate={{
-                                    backgroundColor: sel
-                                        ? "#e94f25"
-                                        : taken
-                                            ? "rgba(255,255,255,0.12)"
-                                            : "rgba(255,255,255,0.03)",
+                                    backgroundColor: sel ? "#e94f25" : taken ? "#3a3a3a" : "#121212",
                                     scale: sel ? [1, 1.3, 1] : 1,
                                 }}
                                 transition={{ duration: 0.35 }}
                                 className={
-                                    "block aspect-square rounded-[4px] border sm:rounded-md " +
-                                    (sel ? "border-[#e94f25]" : taken ? "border-transparent" : "border-white/15")
+                                    "block aspect-square rounded-full border " +
+                                    (sel ? "border-[#e94f25]" : taken ? "border-transparent" : "border-[#4a4a4a]")
                                 }
                             />
                         );
@@ -463,7 +512,7 @@ function BookingPreview({ active }) {
 }
 
 // phone-only frame shapes (full class names so Tailwind can see them)
-const RATIOS = { kanban: "aspect-[4/5]" };
+const RATIOS = { kanban: "aspect-[1/1]", booking: "aspect-[1/1]" };
 
 const PREVIEWS = { kanban: KanbanPreview, feed: FeedPreview, browser: SitePreview, booking: BookingPreview };
 
@@ -474,11 +523,12 @@ function ProjectRow({ project, index }) {
     const ref = useRef(null);
     // previews only animate while the row is on screen
     const inView = useInView(ref, { margin: "-10% 0px -10% 0px" });
+    const wide = useIsWide();
     const Preview = PREVIEWS[project.kind];
     const flip = index % 2 === 1;
 
     return (
-        <article ref={ref} className="grid items-center gap-7 sm:gap-8 lg:grid-cols-12 lg:gap-14">
+        <article ref={ref} className="grid items-center gap-5 sm:gap-8 lg:grid-cols-12 lg:gap-14">
             <div data-reveal="media" className={"min-w-0 lg:col-span-7 " + (flip ? "lg:order-2" : "")}>
                 <Tilt>
                     <BrowserFrame url={project.display} ratio={RATIOS[project.kind]}>
@@ -492,12 +542,12 @@ function ProjectRow({ project, index }) {
                     {project.label}
                 </p>
                 <h3
-                    className="break-words leading-[0.95] tracking-[-0.02em] text-[#f3efe8] [font-size:clamp(2.4rem,10vw,3.6rem)] sm:[font-size:clamp(2.6rem,6vw,5rem)]"
+                    className="break-words leading-[0.95] tracking-[-0.02em] [font-size:clamp(2.4rem,10vw,3.6rem)] sm:[font-size:clamp(2.6rem,6vw,5rem)]"
                     style={SERIF}
                 >
-                    {project.title}
+                    <span style={textInk(wide ? 4.5 : 3.5)}>{project.title}</span>
                 </h3>
-                <p className="mt-4 max-w-[40ch] text-[15px] leading-relaxed text-white/70 sm:mt-5 sm:text-lg">
+                <p className="mt-4 max-w-[40ch] text-[15px] leading-relaxed text-[#a8a8a8] sm:mt-5 sm:text-lg">
                     {project.blurb}
                 </p>
 
@@ -505,7 +555,7 @@ function ProjectRow({ project, index }) {
                     {project.tags.map((t) => (
                         <li
                             key={t}
-                            className="rounded-full border border-white/15 px-3 py-1 text-[10px] tracking-[0.14em] text-white/55 sm:tracking-[0.18em]"
+                            className="rounded-full border-2 border-dotted border-[#3a3a3a] px-3 py-1 text-[10px] tracking-[0.14em] text-white/60 sm:tracking-[0.18em]"
                         >
                             {t}
                         </li>
@@ -517,7 +567,8 @@ function ProjectRow({ project, index }) {
                         href={project.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-7 inline-flex w-full items-center justify-center rounded-full bg-white px-6 py-3.5 text-sm font-medium text-black transition-colors duration-300 hover:bg-[#e94f25] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:mt-8 sm:w-auto sm:py-3"
+                        className="mt-7 inline-flex w-full items-center justify-center rounded-xl border-2 border-dotted border-[#e94f25] bg-[#e94f25]/20 px-6 py-3.5 text-sm font-medium text-white transition-colors duration-300 hover:bg-[#e94f25]/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:mt-8 sm:w-auto sm:py-3"
+                        style={{ ...dotGrid("rgba(233,79,37,0.85)", 4, 1.5), textShadow: "0 1px 8px rgba(0,0,0,0.75)" }}
                     >
                         Visit site
                     </a>
@@ -532,6 +583,7 @@ function ProjectRow({ project, index }) {
 /* ------------------------------------------------------------------ */
 export default function Work() {
     const rootRef = useRef(null);
+    const wide = useIsWide();
 
     // same fonts as the Hero – only added once
     useEffect(() => {
@@ -583,55 +635,56 @@ export default function Work() {
         <section
             ref={rootRef}
             id="work"
-            className="relative w-full overflow-hidden bg-black text-white"
+            className="relative w-full overflow-hidden bg-[#080808] text-white"
             style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         >
-            {/* ambient glow */}
+            {/* faint dot field behind everything (replaces the old grain), fading in and out at the edges */}
             <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0"
                 style={{
-                    background:
-                        "radial-gradient(50% 30% at 85% 8%, rgba(233,79,37,0.16) 0%, rgba(233,79,37,0) 65%), radial-gradient(40% 25% at 10% 60%, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0) 70%)",
+                    ...dotGrid("rgba(243,239,232,0.08)", 22, 1.2),
+                    WebkitMaskImage: "linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent)",
+                    maskImage: "linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent)",
                 }}
             />
 
-            {/* fine grain */}
-            <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 opacity-[0.07] mix-blend-screen"
-                style={{
-                    backgroundImage:
-                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-                }}
-            />
-
-            <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 py-16 sm:px-5 sm:py-24 md:py-36 lg:px-10">
+            <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 py-12 sm:px-5 sm:py-24 md:py-36 lg:px-10">
                 {/* header */}
                 <div
                     data-reveal="text"
-                    className="mb-12 flex flex-col gap-5 sm:mb-16 sm:gap-6 md:mb-28 md:flex-row md:items-end md:justify-between"
+                    className="mb-10 flex flex-col gap-5 sm:mb-16 sm:gap-6 md:mb-28 md:flex-row md:items-end md:justify-between"
                 >
                     <div>
                         <p className="mb-4 text-[10px] tracking-[0.2em] text-[#e94f25] sm:mb-5 sm:text-[11px] sm:tracking-[0.25em]" style={MONO}>
                             SELECTED WORK
                         </p>
                         <h2
-                            className="leading-[0.95] tracking-[-0.02em] text-[#f3efe8] [font-size:clamp(2.6rem,12vw,4rem)] sm:[font-size:clamp(2.8rem,8vw,7.5rem)]"
+                            className="leading-[0.95] tracking-[-0.02em] [font-size:clamp(2.6rem,12vw,4rem)] sm:[font-size:clamp(2.8rem,8vw,7.5rem)]"
                             style={SERIF}
                         >
-                            Things I’ve <span className="italic">shipped</span>
+                            <span style={textInk(wide ? 5.5 : 3.5)}>Things I’ve </span>
+                            <span className="italic" style={textAccent(wide ? 5.5 : 3.5)}>shipped</span>
                         </h2>
                     </div>
-                    <p className="max-w-[34ch] text-[15px] leading-relaxed text-white/70 sm:text-lg">
+                    <p className="max-w-[34ch] text-[15px] leading-relaxed text-[#a8a8a8] sm:text-lg">
                         Products I designed, built and launched, from the first commit to real users.
                     </p>
                 </div>
 
                 {/* projects */}
-                <div className="space-y-20 sm:space-y-24 md:space-y-40">
+                <div>
                     {PROJECTS.map((p, i) => (
-                        <ProjectRow key={p.id} project={p} index={i} />
+                        <div
+                            key={p.id}
+                            className={
+                                i > 0
+                                    ? "mt-10 border-t-2 border-dotted border-[#333] pt-10 sm:mt-20 sm:pt-20 md:mt-32 md:pt-32"
+                                    : ""
+                            }
+                        >
+                            <ProjectRow project={p} index={i} />
+                        </div>
                     ))}
                 </div>
             </div>

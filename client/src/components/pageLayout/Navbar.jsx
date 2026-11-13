@@ -34,6 +34,32 @@ const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const SERIF = { fontFamily: "'Instrument Serif', Georgia, serif" };
 const EASE = [0.22, 1, 0.36, 1];
 
+/* ------------------------------------------------------------------ */
+/*  Dot style – same dotted look as the hero portrait, in plain CSS    */
+/* ------------------------------------------------------------------ */
+const DOT_INK = "#e6e1d9"; // dot colour for white text (slightly dimmed, like the portrait)
+
+// a field of round dots, e.g. for fills
+const dotGrid = (color, cell = 4, radius = 1.2) => ({
+  backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
+  backgroundSize: `${cell}px ${cell}px`,
+});
+
+// text drawn as dots: a dot field clipped to the letter shapes, over a faint solid fill so it stays readable
+const dotText = (dot, faint, cell = 3.5) => {
+  const r = cell * 0.37;
+  return {
+    backgroundImage: `radial-gradient(circle at center, ${dot} ${r}px, transparent ${r + 0.35}px), linear-gradient(${faint}, ${faint})`,
+    backgroundSize: `${cell}px ${cell}px, 100% 100%`,
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    color: "transparent",
+  };
+};
+const textInk = (cell) => dotText(DOT_INK, "rgba(230,225,217,0.26)", cell);
+const textAccent = (cell) => dotText(ACCENT, "rgba(233,79,37,0.30)", cell);
+
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -662,27 +688,34 @@ export default function Navbar() {
       >
         <div
           className={
-            "relative border-b transition-[background-color,border-color,backdrop-filter] duration-500 " +
-            (barSolid ? "border-white/10 bg-black/60 backdrop-blur-xl" : "border-transparent bg-transparent")
+            "relative border-b-2 border-dotted transition-[background-color,border-color,backdrop-filter] duration-500 " +
+            (barSolid ? "border-[#3a3a3a] bg-black/60 backdrop-blur-xl" : "border-transparent bg-transparent")
           }
         >
+          {/* faint dot field on the solid bar */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 transition-opacity duration-500"
+            style={{ ...dotGrid("rgba(243,239,232,0.07)", 14, 1), opacity: barSolid ? 1 : 0 }}
+          />
+
           <nav
             aria-label="Main"
-            className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-5 md:grid md:h-[72px] md:grid-cols-[1fr_auto_1fr] lg:px-10"
+            className="relative mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-5 md:grid md:h-[72px] md:grid-cols-[1fr_auto_1fr] lg:px-10"
           >
             {/* logo */}
             <a
               ref={logoRef}
               href="#home"
               onClick={(e) => navigate(e, "home")}
-              className="flex items-baseline justify-self-start text-[24px] leading-none tracking-[-0.01em] text-[#f3efe8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+              className="flex items-baseline justify-self-start text-[24px] leading-none tracking-[-0.01em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
               style={SERIF}
               aria-label={`${FIRST} ${LAST} – back to top`}
             >
               <span aria-hidden="true" className="flex">
                 {[...FIRST].map((ch, i) => (
                   <span key={"f" + i} className="inline-block overflow-hidden py-[0.12em] -my-[0.12em]">
-                    <span className="logo-ch inline-block">{ch}</span>
+                    <span className="logo-ch inline-block" style={textInk(2.5)}>{ch}</span>
                   </span>
                 ))}
               </span>
@@ -690,7 +723,7 @@ export default function Navbar() {
               <span aria-hidden="true" className="flex italic">
                 {[...LAST].map((ch, i) => (
                   <span key={"l" + i} className="inline-block overflow-hidden py-[0.12em] pr-[0.04em] -my-[0.12em] -mr-[0.04em]">
-                    <span className="logo-ch inline-block">{ch}</span>
+                    <span className="logo-ch inline-block" style={textAccent(2.5)}>{ch}</span>
                   </span>
                 ))}
               </span>
@@ -698,8 +731,8 @@ export default function Navbar() {
 
             {/* desktop links – sliding pill + text roll on hover */}
             <ul
-              className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 backdrop-blur-md md:flex"
-              style={MONO}
+              className="hidden items-center gap-1 rounded-full border-2 border-dotted border-[#3a3a3a] bg-[#0a0a0a]/70 p-1 backdrop-blur-md md:flex"
+              style={{ ...MONO, ...dotGrid("rgba(243,239,232,0.08)", 4, 0.9) }}
             >
               {LINKS.map((l) => {
                 const on = active === l.id;
@@ -709,7 +742,8 @@ export default function Navbar() {
                       <motion.span
                         layoutId="nav-pill"
                         aria-hidden="true"
-                        className="absolute inset-0 rounded-full border border-white/10 bg-white/10"
+                        className="absolute inset-0 rounded-full border-2 border-dotted border-[#e94f25] bg-[#e94f25]/20"
+                        style={dotGrid("rgba(233,79,37,0.7)", 4, 1.1)}
                         transition={{ type: "spring", stiffness: 380, damping: 32 }}
                       />
                     )}
@@ -721,6 +755,7 @@ export default function Navbar() {
                         "group relative block rounded-full px-3.5 py-2 text-[11px] uppercase tracking-[0.22em] transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white lg:px-4 " +
                         (on ? "text-white" : "text-white/55 hover:text-white")
                       }
+                      style={on ? { textShadow: "0 1px 6px rgba(0,0,0,0.85)" } : undefined}
                     >
                       <span className="relative block overflow-hidden">
                         <span className="block transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-full">
@@ -744,7 +779,8 @@ export default function Navbar() {
               <MagneticLink
                 href={`#${CTA_TARGET}`}
                 onClick={(e) => navigate(e, CTA_TARGET)}
-                className="hidden rounded-full bg-white px-5 py-2.5 text-[13px] font-medium text-black transition-colors duration-300 hover:bg-[#e94f25] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white md:inline-flex"
+                className="hidden rounded-xl border-2 border-dotted border-[#e94f25] bg-[#e94f25]/20 px-5 py-2.5 text-[13px] font-medium text-white transition-colors duration-300 hover:bg-[#e94f25]/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white md:inline-flex"
+                style={{ ...dotGrid("rgba(233,79,37,0.85)", 4, 1.5), textShadow: "0 1px 8px rgba(0,0,0,0.75)" }}
               >
                 <span className="lg:hidden">{CTA_SHORT}</span>
                 <span className="hidden lg:inline">{CTA_LABEL}</span>
@@ -773,11 +809,11 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* reading progress */}
+          {/* reading progress – a line of orange dots */}
           <motion.span
             aria-hidden="true"
-            className="pointer-events-none absolute -bottom-px left-0 h-px w-full origin-left bg-[#e94f25]"
-            style={{ scaleX: progress, opacity: barSolid ? 1 : 0 }}
+            className="pointer-events-none absolute -bottom-[3px] left-0 h-[4px] w-full origin-left"
+            style={{ scaleX: progress, opacity: barSolid ? 1 : 0, ...dotGrid(ACCENT, 4, 1.4) }}
           />
         </div>
       </motion.header>
@@ -788,14 +824,18 @@ export default function Navbar() {
         id="mobile-menu"
         aria-hidden={!open}
         className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-black px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-20 text-white md:hidden"
-        style={{ visibility: "hidden", fontFamily: "'Inter', system-ui, sans-serif" }}
+        style={{
+          visibility: "hidden",
+          fontFamily: "'Inter', system-ui, sans-serif",
+          ...dotGrid("rgba(243,239,232,0.08)", 22, 1.2),
+        }}
       >
         <div className="relative">
           <ul>
             {LINKS.map((l, i) => {
               const on = active === l.id;
               return (
-                <li key={l.id} className="m-row overflow-hidden border-b border-white/10">
+                <li key={l.id} className="m-row overflow-hidden border-b-2 border-dotted border-[#333]">
                   <a
                     href={`#${l.id}`}
                     onClick={(e) => pick(e, l.id, i)}
@@ -808,8 +848,8 @@ export default function Navbar() {
                     className="block py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
                   >
                     <span
-                      className="m-line block text-[52px] leading-[1.05] tracking-[-0.01em] transition-colors duration-300"
-                      style={{ ...SERIF, color: on ? ACCENT : "#f3efe8" }}
+                      className="m-line block text-[52px] leading-[1.05] tracking-[-0.01em]"
+                      style={{ ...SERIF, ...(on ? textAccent(4) : textInk(4)) }}
                     >
                       {l.label}
                     </span>
@@ -820,13 +860,13 @@ export default function Navbar() {
           </ul>
         </div>
 
-        <div className="m-fade mt-3 flex items-baseline justify-between text-[13px] text-white/50">
+        <div className="m-fade mt-3 flex items-baseline justify-between text-[11px] tracking-[0.15em] text-white/50" style={MONO}>
           <span>You’re in {LINKS[activeIndex].label}</span>
           <span ref={countRef} className="tabular-nums">0%</span>
         </div>
 
         {/* three.js area */}
-        <div className="m-scene relative my-4 min-h-[140px] flex-1">
+        <div className="m-scene relative my-4 min-h-[140px] flex-1 overflow-hidden rounded-xl border-2 border-dotted border-[#333]">
           {everOpened && <MenuScene running={open} shape={shape} />}
         </div>
 
@@ -834,19 +874,20 @@ export default function Navbar() {
           <a
             href={`#${CTA_TARGET}`}
             onClick={(e) => navigate(e, CTA_TARGET)}
-            className="m-fade inline-flex w-full items-center justify-center rounded-full bg-[#e94f25] px-6 py-4 text-[15px] font-medium text-white active:bg-[#d4431c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            className="m-fade inline-flex w-full items-center justify-center rounded-xl border-2 border-dotted border-[#e94f25] bg-[#e94f25]/20 px-6 py-4 text-[15px] font-medium text-white active:bg-[#e94f25]/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            style={{ ...dotGrid("rgba(233,79,37,0.85)", 4, 1.5), textShadow: "0 1px 8px rgba(0,0,0,0.75)" }}
           >
             {CTA_LABEL}
           </a>
 
-          <ul className="flex items-center gap-6">
+          <ul className="flex items-center gap-6" style={MONO}>
             {SOCIALS.map((s) => (
               <li key={s.label} className="m-fade">
                 <a
                   href={s.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="py-2 text-[14px] text-white/60 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                  className="py-2 text-[12px] tracking-[0.12em] text-white/60 underline decoration-white/20 decoration-dotted decoration-2 underline-offset-8 transition-colors hover:text-white hover:decoration-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                 >
                   {s.label}
                 </a>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useSpring } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -24,6 +24,47 @@ const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const SERIF = { fontFamily: "'Instrument Serif', Georgia, serif" };
 
 /* ------------------------------------------------------------------ */
+/*  Dot style – same dotted look as the hero portrait, in plain CSS    */
+/* ------------------------------------------------------------------ */
+const ORANGE = "#e94f25";
+const DOT_INK = "#e6e1d9"; // dot colour for white text (slightly dimmed, like the portrait)
+
+// a field of round dots, e.g. for fills
+const dotGrid = (color, cell = 4, radius = 1.2) => ({
+    backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
+    backgroundSize: `${cell}px ${cell}px`,
+});
+
+// text drawn as dots: a dot field clipped to the letter shapes, over a faint solid fill so it stays readable
+const dotText = (dot, faint, cell = 3.5) => {
+    const r = cell * 0.37;
+    return {
+        backgroundImage: `radial-gradient(circle at center, ${dot} ${r}px, transparent ${r + 0.35}px), linear-gradient(${faint}, ${faint})`,
+        backgroundSize: `${cell}px ${cell}px, 100% 100%`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+    };
+};
+const textInk = (cell) => dotText(DOT_INK, "rgba(230,225,217,0.26)", cell);
+const textAccent = (cell) => dotText(ORANGE, "rgba(233,79,37,0.30)", cell);
+
+// true on tablets / desktops – used to pick a dot size that suits the text size
+function useIsWide() {
+    const [wide, setWide] = useState(() =>
+        typeof window !== "undefined" ? window.matchMedia("(min-width: 640px)").matches : true
+    );
+    useEffect(() => {
+        const mq = window.matchMedia("(min-width: 640px)");
+        const on = () => setWide(mq.matches);
+        mq.addEventListener("change", on);
+        return () => mq.removeEventListener("change", on);
+    }, []);
+    return wide;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Small pieces                                                       */
 /* ------------------------------------------------------------------ */
 function Field({ id, label, children }) {
@@ -31,7 +72,7 @@ function Field({ id, label, children }) {
         <div>
             <label
                 htmlFor={id}
-                className="mb-2 block text-[10px] tracking-[0.2em] text-white/50 sm:text-[11px]"
+                className="mb-2 block text-[10px] tracking-[0.2em] text-white/60 sm:text-[11px]"
                 style={MONO}
             >
                 {label}
@@ -43,10 +84,11 @@ function Field({ id, label, children }) {
 
 // text-base on phones stops iOS from zooming into the field
 const INPUT =
-    "w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-base text-white/90 placeholder:text-white/30 transition-colors duration-300 focus:border-[#e94f25] focus:outline-none sm:text-sm";
+    "w-full rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#0a0a0a] px-4 py-3 text-base text-white/90 placeholder:text-white/40 transition-colors duration-300 focus:border-[#e94f25] focus:outline-none sm:text-sm";
 
 function CopyEmail() {
     const [copied, setCopied] = useState(false);
+    const wide = useIsWide();
 
     const copy = async () => {
         try {
@@ -62,15 +104,15 @@ function CopyEmail() {
         <div className="flex flex-wrap items-center gap-3">
             <a
                 href={`mailto:${EMAIL}`}
-                className="break-all text-[#f3efe8] underline decoration-white/20 underline-offset-8 transition-colors duration-300 [font-size:clamp(1.4rem,6vw,2.2rem)] hover:decoration-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                className="cursor-pointer break-all underline decoration-white/20 decoration-dotted decoration-2 underline-offset-8 transition-colors duration-300 [font-size:clamp(1.4rem,6vw,2.2rem)] hover:decoration-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                 style={SERIF}
             >
-                {EMAIL}
+                <span style={textInk(wide ? 3.5 : 3)}>{EMAIL}</span>
             </a>
             <button
                 type="button"
                 onClick={copy}
-                className="rounded-full border border-white/15 px-3 py-1.5 text-[10px] tracking-[0.18em] text-white/60 transition-colors duration-300 hover:border-[#e94f25] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                className="cursor-pointer rounded-full border-2 border-dotted border-[#3a3a3a] px-3 py-1.5 text-[10px] tracking-[0.18em] text-white/65 transition-colors duration-300 hover:border-[#e94f25] hover:bg-[#e94f25]/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                 style={MONO}
                 aria-live="polite"
             >
@@ -80,11 +122,49 @@ function CopyEmail() {
     );
 }
 
+// primary button: dotted orange fill, leans a little towards the cursor (same as the hero buttons)
+function SendButton() {
+    const ref = useRef(null);
+    const x = useMotionValue(0);
+    const y = useMotionValue(0);
+    const sx = useSpring(x, { stiffness: 220, damping: 16, mass: 0.4 });
+    const sy = useSpring(y, { stiffness: 220, damping: 16, mass: 0.4 });
+
+    const onMove = (e) => {
+        if (e.pointerType && e.pointerType !== "mouse") return;
+        const r = ref.current.getBoundingClientRect();
+        x.set((e.clientX - (r.left + r.width / 2)) * 0.2);
+        y.set((e.clientY - (r.top + r.height / 2)) * 0.3);
+    };
+    const reset = () => {
+        x.set(0);
+        y.set(0);
+    };
+
+    return (
+        <motion.button
+            ref={ref}
+            type="submit"
+            onPointerMove={onMove}
+            onPointerLeave={reset}
+            whileTap={{ scale: 0.97 }}
+            style={{ x: sx, y: sy, ...dotGrid("rgba(233,79,37,0.85)", 4, 1.5), textShadow: "0 1px 8px rgba(0,0,0,0.75)" }}
+            className="inline-flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border-2 border-dotted border-[#e94f25] bg-[#e94f25]/20 px-7 py-3.5 text-sm font-medium text-white transition-colors duration-300 hover:bg-[#e94f25]/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:w-auto sm:py-3"
+        >
+            Send message
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 17 17 7M8 7h9v9" />
+            </svg>
+        </motion.button>
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Contact section                                                    */
 /* ------------------------------------------------------------------ */
 export default function Contact() {
     const rootRef = useRef(null);
+    const wide = useIsWide();
     const [topic, setTopic] = useState(TOPICS[0]);
     const [sent, setSent] = useState(false);
 
@@ -149,26 +229,17 @@ export default function Contact() {
         <section
             ref={rootRef}
             id="contact"
-            className="relative w-full overflow-hidden bg-black text-white"
+            className="relative w-full overflow-hidden border-t-2 border-dotted border-[#333333] bg-[#050505] text-white"
             style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         >
-            {/* ambient glow */}
+            {/* faint dot field behind everything (replaces the old grain), fading in and out at the edges */}
             <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0"
                 style={{
-                    background:
-                        "radial-gradient(50% 30% at 15% 10%, rgba(233,79,37,0.16) 0%, rgba(233,79,37,0) 65%), radial-gradient(40% 25% at 90% 70%, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0) 70%)",
-                }}
-            />
-
-            {/* fine grain */}
-            <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 opacity-[0.07] mix-blend-screen"
-                style={{
-                    backgroundImage:
-                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
+                    ...dotGrid("rgba(243,239,232,0.08)", 22, 1.2),
+                    WebkitMaskImage: "linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent)",
+                    maskImage: "linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent)",
                 }}
             />
 
@@ -182,10 +253,11 @@ export default function Contact() {
                         CONTACT
                     </p>
                     <h2
-                        className="leading-[0.95] tracking-[-0.02em] text-[#f3efe8] [font-size:clamp(2.6rem,12vw,4rem)] sm:[font-size:clamp(2.8rem,8vw,7.5rem)]"
+                        className="leading-[0.95] tracking-[-0.02em] [font-size:clamp(2.6rem,12vw,4rem)] sm:[font-size:clamp(2.8rem,8vw,7.5rem)]"
                         style={SERIF}
                     >
-                        Let’s build something <span className="italic">together</span>
+                        <span style={textInk(wide ? 5.5 : 3.5)}>Let’s build something </span>
+                        <span className="italic" style={textAccent(wide ? 5.5 : 3.5)}>together</span>
                     </h2>
                 </div>
 
@@ -194,36 +266,36 @@ export default function Contact() {
                     <div data-reveal="text" className="min-w-0 lg:col-span-5">
                         {AVAILABILITY && (
                             <div
-                                className="mb-6 inline-flex items-center gap-2.5 rounded-full border border-white/15 px-3 py-1.5 text-[10px] tracking-[0.18em] text-white/60"
-                                style={MONO}
+                                className="mb-6 inline-flex items-center gap-2.5 rounded-full border-2 border-dotted border-[#e94f25]/60 bg-[#e94f25]/10 px-3.5 py-1.5 text-[10px] tracking-[0.18em] text-[#ff9a7a]"
+                                style={{ ...MONO, ...dotGrid("rgba(233,79,37,0.35)", 4, 1) }}
                             >
                                 {AVAILABILITY}
                             </div>
                         )}
 
-                        <p className="max-w-[40ch] text-[15px] leading-relaxed text-white/70 sm:text-lg">
+                        <p className="max-w-[40ch] text-[15px] leading-relaxed text-[#a8a8a8] sm:text-lg">
                             Have an idea, a project or just a question? Send a message and I’ll get back to you.{" "}
                             {REPLY_TIME}
                         </p>
 
                         <div className="mt-8">
-                            <p className="mb-3 text-[10px] tracking-[0.2em] text-white/50 sm:text-[11px]" style={MONO}>
+                            <p className="mb-3 text-[10px] tracking-[0.2em] text-white/60 sm:text-[11px]" style={MONO}>
                                 EMAIL
                             </p>
                             <CopyEmail />
                         </div>
 
-                        <ul className="mt-10 border-t border-white/10" style={MONO}>
+                        <ul className="mt-10 border-t-2 border-dotted border-[#333]" style={MONO}>
                             {SOCIALS.map((s) => (
-                                <li key={s.label} className="border-b border-white/10">
+                                <li key={s.label} className="border-b-2 border-dotted border-[#333]">
                                     <a
                                         href={s.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="group flex items-center justify-between gap-4 py-4 text-[11px] tracking-[0.15em] text-white/55 transition-colors duration-300 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                                        className="group flex cursor-pointer items-center justify-between gap-4 py-4 text-[11px] tracking-[0.15em] text-white/65 transition-colors duration-300 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                                     >
                                         <span className="shrink-0">{s.label}</span>
-                                        <span className="min-w-0 truncate text-white/35 transition-colors duration-300 group-hover:text-[#e94f25]">
+                                        <span className="min-w-0 truncate text-white/50 transition-colors duration-300 group-hover:text-[#e94f25]">
                                             {s.handle}
                                         </span>
                                     </a>
@@ -236,7 +308,8 @@ export default function Contact() {
                     <div data-reveal="media" className="min-w-0 lg:col-span-7">
                         <form
                             onSubmit={onSubmit}
-                            className="rounded-xl border border-white/10 bg-[#070707] p-5 shadow-[0_30px_90px_-35px_rgba(233,79,37,0.4)] sm:rounded-2xl sm:p-8"
+                            className="rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#101010] p-5 sm:rounded-2xl sm:p-8"
+                            style={dotGrid("rgba(243,239,232,0.05)", 8, 1)}
                         >
                             <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
                                 <Field id="c-name" label="NAME">
@@ -264,7 +337,7 @@ export default function Contact() {
                             </div>
 
                             <div className="mt-5 sm:mt-6">
-                                <p className="mb-2 text-[10px] tracking-[0.2em] text-white/50 sm:text-[11px]" style={MONO}>
+                                <p className="mb-2 text-[10px] tracking-[0.2em] text-white/60 sm:text-[11px]" style={MONO}>
                                     I NEED
                                 </p>
                                 <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Project type">
@@ -278,12 +351,15 @@ export default function Contact() {
                                                 aria-checked={on}
                                                 onClick={() => setTopic(t)}
                                                 className={
-                                                    "rounded-full px-4 py-2 text-[11px] tracking-[0.12em] transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white " +
+                                                    "cursor-pointer rounded-full border-2 border-dotted px-4 py-2 text-[11px] tracking-[0.12em] transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white " +
                                                     (on
-                                                        ? "bg-[#e94f25] text-white"
-                                                        : "border border-white/15 text-white/55 hover:border-white/40 hover:text-white")
+                                                        ? "border-[#e94f25] bg-[#e94f25]/25 text-white"
+                                                        : "border-[#3a3a3a] bg-[#0a0a0a] text-white/65 hover:border-white/40 hover:text-white")
                                                 }
-                                                style={MONO}
+                                                style={{
+                                                    ...MONO,
+                                                    ...(on ? { ...dotGrid("rgba(233,79,37,0.8)", 4, 1.2), textShadow: "0 1px 6px rgba(0,0,0,0.8)" } : null),
+                                                }}
                                             >
                                                 {t}
                                             </button>
@@ -306,15 +382,9 @@ export default function Contact() {
                             </div>
 
                             <div className="mt-7 flex flex-col gap-4 sm:mt-8 sm:flex-row sm:items-center sm:justify-between">
-                                <motion.button
-                                    type="submit"
-                                    whileTap={{ scale: 0.97 }}
-                                    className="inline-flex w-full items-center justify-center rounded-full bg-white px-7 py-3.5 text-sm font-medium text-black transition-colors duration-300 hover:bg-[#e94f25] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:w-auto sm:py-3"
-                                >
-                                    Send message
-                                </motion.button>
+                                <SendButton />
                                 <p
-                                    className="min-h-[1rem] text-[10px] tracking-[0.12em] text-white/45"
+                                    className="min-h-[1rem] text-[10px] tracking-[0.12em] text-white/55"
                                     style={MONO}
                                     role="status"
                                     aria-live="polite"

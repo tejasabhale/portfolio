@@ -9,185 +9,270 @@ gsap.registerPlugin(ScrollTrigger);
 /* ------------------------------------------------------------------ */
 /*  CONFIG – edit these                                                */
 /* ------------------------------------------------------------------ */
-const NAME = "Tejas Abhale";
-// Put tejas-portrait.jpg in your /public folder
+const NAME = "Tejas";
+// The ONLY image used. Put it in /public. Everything else is drawn by Three.js.
 const PORTRAIT_SRC = "tejas-portrait.png";
+
+// dots across the portrait – more = sharper face, heavier on the GPU
+const DOTS_DESKTOP = 360;
+const DOTS_MOBILE = 210;
+
+const BADGE = "Available for new projects";
+const INTRO =
+    "Hi, I'm Tejas — a developer and automation builder crafting products and workflows that are fast, reliable, and built to solve real problems.";
+
+// colours
+const BG = "#000000";
+const INK = "#f3efe8";
 const ORANGE = "#e94f25";
 
-// Where the face sits in your photo (0–1, measured from left / top).
-// e.g. face slightly right of center and in the upper third → 0.55 / 0.35
-const FACE_X = 0.5;
-const FACE_Y = 0.35;
-// Where the face should sit inside the portrait frame (0–1 from left / top).
-// 0.5 = dead centre of the screen. 0.45 keeps a clear gap above the name.
-// The looping label under the chin follows this value automatically.
-const FRAME_X = 0.5;
-const FRAME_Y = 0.45;
+/* ------------------------------------------------------------------ */
+/*  Dot style – the same dotted look as the portrait, in plain CSS     */
+/* ------------------------------------------------------------------ */
 
-// Background blending: the photo's own backdrop is detected from its corners and
-// faded into the page's black. Raise KEY_STRENGTH (0–1) if a halo remains,
-// lower it if parts of you (e.g. a light shirt) start to disappear.
-const KEY_STRENGTH = 0.95;
-const KEY_LOW = 0.06;  // colour distance from backdrop that is fully transparent
-const KEY_HIGH = 0.28; // colour distance from backdrop that is fully opaque
-
-const MARQUEE = "BUILDING REAL-WORLD SOLUTIONS  ·  OPEN TO COLLABORATION  ·  AUTOMATING GROWTH  ·";
+// a field of round dots, e.g. for badge / button fills
+const dotGrid = (color, cell = 4, radius = 1.2) => ({
+    backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
+    backgroundSize: `${cell}px ${cell}px`,
+});
 
 /* ------------------------------------------------------------------ */
-/*  Three.js – halftone line-scan portrait                             */
+/*  Idle life – tweak these to make the portrait calmer / livelier     */
 /* ------------------------------------------------------------------ */
+const BREATH_SPEED = 1.25; // radians per second (~5s per breath)
+
+// Share of dots visible WHILE the intro rain plays.
+// 1 = all dots (no thinning), 0.45 = 45%, 0.3 = 30%.
+// The rest fade in once the portrait has settled, and stay.
+const ANIM_KEEP = 0.45;
+
+// Overall portrait brightness. 1 = original photo colours, below 1 = darker, above 1 = brighter.
+const PORTRAIT_BRIGHTNESS = 0.78;
+
+/* ------------------------------------------------------------------ */
+/*  Three.js – the photo becomes a field of true-colour dots           */
+/* ------------------------------------------------------------------ */
+const PLANE_H = 4;
+const FOV = 32;
+const VIEW_W = 4.3;
+const HEAD_PIVOT = [-0.07, -0.2]; // neck, world units
+
 const vertexShader = /* glsl */ `
-  varying vec2 vUv;
+  const float ANIM_KEEP = ${ANIM_KEEP.toFixed(3)};
+
+  attribute vec3 aCol;
+  attribute float aRand;
+  attribute float aHead;
+  attribute float aEdge;
+
+  uniform float uTime;
+  uniform float uReveal;
+  uniform float uDot;
+  uniform float uPPU;
+  uniform float uZ;
+  uniform vec3 uHead;   // x: tilt (z axis)  y: turn (y axis)  z: nod (x axis)
+  uniform vec2 uPivot;
+  uniform float uBreath; // -1..1 breathing phase
+  uniform vec2 uMouse;   // -1..1 cursor position over the portrait
+  uniform float uLife;   // 0..1 idle animation strength (fades in after intro)
+
+  varying vec3 vCol;
+  varying float vLum;
+  varying float vFade;
+  varying float vIn;
+  varying float vEdge;
+  varying float vTw;
+
   void main() {
-    vUv = uv;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
+    vec3 p = position;
+    vCol = aCol;
+    vEdge = aEdge;
+
+    // head: rigid tilt / turn / nod around the neck (uHead stays at zero, so the head is still)
+    if (aHead > 0.0) {
+      vec3 q = p - vec3(uPivot, 0.0);
+      float a = uHead.x * aHead;
+      q.xy = vec2(cos(a) * q.x - sin(a) * q.y, sin(a) * q.x + cos(a) * q.y);
+      float b = uHead.y * aHead;
+      q.xz = vec2(cos(b) * q.x + sin(b) * q.z, -sin(b) * q.x + cos(b) * q.z);
+      float c = uHead.z * aHead;
+      q.yz = vec2(cos(c) * q.y - sin(c) * q.z, sin(c) * q.y + cos(c) * q.z);
+      p = q + vec3(uPivot, 0.0);
+    }
+
+    // intro: dots rain down from above, sweeping left to right, and settle with a soft bounce
+    float dx = clamp((position.x + 2.2) / 4.4, 0.0, 1.0);
+    float d = dx * 0.5 + aRand * 0.12;
+    float r0 = smoothstep(d, d + 0.38, uReveal);
+    float t = r0 - 1.0;
+    float rb = 1.0 + 2.2 * t * t * t + 1.2 * t * t;   // ease-out-back: slight overshoot, then settle
+    float r = 1.0 - pow(1.0 - r0, 3.0);
+    vec3 start = p + vec3((aRand - 0.5) * 0.4, 2.6 + aRand * 2.2, -0.8 * aRand);
+    vec3 pos = mix(start, p, rb);
+    vIn = smoothstep(0.0, 0.25, r0);
+
+    // thin out the field during the intro:
+    // "extra" dots (aRand >= ANIM_KEEP) only appear once the portrait has settled
+    float extra = step(ANIM_KEEP, aRand);
+    float restOnly = smoothstep(0.9, 1.0, r0);
+    float show = mix(1.0, restOnly, extra);
+    vIn *= show;
+
+    // ---- idle life: breathing + drift + parallax (the head never rotates) ----
+    float body = 1.0 - aHead;                        // 1 on shoulders/chest, 0 on head
+    float breathe = uBreath * 0.018 * uLife;
+    pos.y += breathe * (0.35 + body * 0.65);         // chest moves more than head
+    pos.z += uBreath * 0.02 * uLife * body;
+
+    // per-dot micro drift, like floating particles
+    float ph = aRand * 6.2831;
+    pos.x += sin(uTime * 0.9 + ph) * 0.0012 * uLife;
+    pos.y += cos(uTime * 0.7 + ph * 1.3) * 0.0012 * uLife;
+
+    // cursor parallax: deeper dots move more
+    float depth = clamp((position.z + 0.25) / 0.7, 0.0, 1.0);
+    pos.xy += uMouse * vec2(0.05, 0.035) * (0.3 + depth) * uLife;
+
+    // twinkle phase (used for size here and brightness in the fragment shader)
+    vTw = 0.5 + 0.5 * sin(uTime * 1.6 + ph * 2.0);
+
+    vLum = dot(vCol, vec3(0.299, 0.587, 0.114));
+    vFade = smoothstep(-2.0, -1.4, p.y);
+
+    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mv;
+
+    float world = uDot * mix(0.95, 1.12, vLum) * mix(0.3, 1.0, r) * mix(0.7, 1.0, aEdge)
+                * (1.0 + (vTw - 0.5) * 0.06 * uLife);
+    gl_PointSize = max(world * uPPU * (uZ / -mv.z), 2.0);
+
+    // hidden dots: push off-screen so they cost no fragment work
+    if (show < 0.01) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
   }
 `;
 
-/* GLSL for the photo: noise, "cover" fit, backdrop keying and edge fade. */
-const COMMON_GLSL = /* glsl */ `
-  uniform sampler2D uTex;
-  uniform vec2 uRes;
-  uniform float uImgAspect;
-  uniform float uDissolve;   // 0 -> 1 on scroll
-  uniform vec3 uAccent;
-  uniform vec2 uFocus;       // face position in the photo (uv, origin bottom-left)
-  uniform vec2 uFrame;       // where the face lands inside the frame
-  uniform float uKey;        // 0..1 strength of backdrop removal
-  uniform vec2 uKeyRange;    // low / high colour-distance thresholds
-
-  float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
-  }
-  float vnoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-  }
-  float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int i = 0; i < 4; i++) {
-      v += a * vnoise(p);
-      p *= 2.03;
-      a *= 0.5;
-    }
-    return v;
-  }
-
-  // the moment (0..1) at which this spot of the portrait breaks away:
-  // shoulders crumble first, the head last, with ragged noisy edges
-  float dissolveThreshold(vec2 uv) {
-    float aspect = uRes.x / uRes.y;
-    float sweep = clamp((1.0 - uv.x) * 0.3 + uv.y * 0.7, 0.0, 1.0);
-    float n = clamp((fbm(uv * vec2(aspect, 1.0) * 5.0) - 0.2) / 0.6, 0.0, 1.0);
-    return sweep * 0.65 + n * 0.35;
-  }
-
-  // "cover" fit of the image inside the canvas, placing uFocus at uFrame
-  vec2 coverUV(vec2 v) {
-    float viewAspect = uRes.x / uRes.y;
-    vec2 scale = vec2(1.0);
-    if (viewAspect > uImgAspect) {
-      scale.y = uImgAspect / viewAspect;
-    } else {
-      scale.x = viewAspect / uImgAspect;
-    }
-    vec2 c = clamp(uFocus, uFrame * scale, 1.0 - (1.0 - uFrame) * scale);
-    return (v - uFrame) * scale + c;
-  }
-
-  vec3 bgColor() {
-    return (
-      texture2D(uTex, vec2(0.03, 0.97)).rgb +
-      texture2D(uTex, vec2(0.50, 0.99)).rgb +
-      texture2D(uTex, vec2(0.97, 0.97)).rgb +
-      texture2D(uTex, vec2(0.03, 0.80)).rgb +
-      texture2D(uTex, vec2(0.97, 0.80)).rgb +
-      texture2D(uTex, vec2(0.03, 0.62)).rgb +
-      texture2D(uTex, vec2(0.97, 0.62)).rgb +
-      texture2D(uTex, vec2(0.03, 0.45)).rgb
-    ) * 0.125;
-  }
-
-  // removes the backdrop colour that bleeds into semi-transparent edge pixels,
-  // so no light halo is left around hair and shoulders
-  vec3 decontaminate(vec3 c, vec3 bg, float m) {
-    return clamp((c - bg * (1.0 - m)) / max(m, 0.3), 0.0, 1.0);
-  }
-
-  // anything far from the subject melts into the page, whatever the photo has there
-  float falloff(vec2 uv) {
-    vec2 d = (uv - vec2(0.5, 0.52)) / vec2(0.5, 0.7);
-    return 1.0 - smoothstep(0.7, 1.0, length(d));
-  }
-
-  // how much of this colour is "subject" rather than the photo's backdrop
-  float subjectMask(vec3 c, vec3 bg) {
-    float d = distance(c, bg);
-    return mix(1.0, smoothstep(uKeyRange.x, uKeyRange.y, d), uKey);
-  }
-
-  // soft edges so it melts into the black page
-  float edgeMask(vec2 uv) {
-    float fx = smoothstep(0.0, 0.08, uv.x) * smoothstep(1.0, 0.92, uv.x);
-    float fy = smoothstep(0.0, 0.3, uv.y) * smoothstep(1.0, 0.94, uv.y);
-    return fx * fy * falloff(uv);
-  }
-`;
-
-/* ---- the photo: fades out softly as you scroll ---- */
 const fragmentShader = /* glsl */ `
   precision highp float;
-  varying vec2 vUv;
-  uniform float uReveal;
-  ${COMMON_GLSL}
+  varying vec3 vCol;
+  varying float vLum;
+  varying float vFade;
+  varying float vIn;
+  varying float vEdge;
+  varying float vTw;
 
   void main() {
-    vec3 photo = texture2D(uTex, clamp(coverUV(vUv), 0.0, 1.0)).rgb;
-    vec3 bg = bgColor();
-    float subject = subjectMask(photo, bg);
-    photo = decontaminate(photo, bg, subject);
+    float d = length(gl_PointCoord - 0.5);
+    if (d > 0.5) discard;
 
-    // minimal dissolve: the photo just fades away with a soft, slightly noisy edge
-    float t = dissolveThreshold(vUv);
-    float p = uDissolve * 1.35;
-    float alive = 1.0 - smoothstep(t - 0.12, t + 0.12, p);
-    vec3 col = photo;
+    // true colour with mild contrast, scaled by the brightness constant
+    vec3 col = pow(vCol, vec3(0.95));
+    col = clamp((col - 0.5) * 1.12 + 0.5, 0.0, 1.0);
+    col *= ${PORTRAIT_BRIGHTNESS.toFixed(3)};
+    col *= 1.0 + (vTw - 0.5) * 0.05; // very soft shimmer
 
-    // reveal wipe from top to bottom on load
-    float wipe = smoothstep(uReveal - 0.25, uReveal, 1.0 - vUv.y);
-
-    float a = edgeMask(vUv) * (1.0 - wipe) * alive * subject;
-    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+    // harder dot edge = crisper detail
+    float a = smoothstep(0.5, 0.4, d) * vEdge * vFade * vIn;
+    gl_FragColor = vec4(col, a);
   }
 `;
 
-function makeFallbackTexture() {
+const sstep = (a, b, x) => {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+};
+
+function blur(src, w, h, R) {
+    const tmp = new Float32Array(src.length);
+    const out = new Float32Array(src.length);
+    const n = 2 * R + 1;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let s = 0;
+            for (let k = -R; k <= R; k++) s += src[y * w + Math.min(w - 1, Math.max(0, x + k))];
+            tmp[y * w + x] = s / n;
+        }
+    }
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let s = 0;
+            for (let k = -R; k <= R; k++) s += tmp[Math.min(h - 1, Math.max(0, y + k)) * w + x];
+            out[y * w + x] = s / n;
+        }
+    }
+    return out;
+}
+
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const im = new Image();
+        im.crossOrigin = "anonymous";
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = src;
+    });
+}
+
+// only used if the photo cannot be loaded
+function fallbackCanvas() {
     const c = document.createElement("canvas");
-    c.width = 640;
-    c.height = 800;
+    c.width = c.height = 640;
     const g = c.getContext("2d");
-    g.fillStyle = "#000";
-    g.fillRect(0, 0, c.width, c.height);
-    const grad = g.createRadialGradient(320, 300, 20, 320, 320, 260);
-    grad.addColorStop(0, "#fff");
-    grad.addColorStop(1, "#222");
-    g.fillStyle = grad;
+    g.fillStyle = "#cfc8c0";
     g.beginPath();
-    g.ellipse(320, 300, 130, 165, 0, 0, Math.PI * 2); // head
+    g.ellipse(320, 280, 120, 150, 0, 0, Math.PI * 2);
     g.fill();
     g.beginPath();
-    g.ellipse(320, 760, 270, 220, 0, 0, Math.PI * 2); // shoulders
+    g.ellipse(320, 700, 260, 240, 0, 0, Math.PI * 2);
     g.fill();
-    return new THREE.CanvasTexture(c);
+    return c;
+}
+
+/* Photo -> one field of dots */
+function analysePhoto(source, cols) {
+    const iw = source.width, ih = source.height;
+    const rows = Math.max(1, Math.round((cols * ih) / iw));
+    const c = document.createElement("canvas");
+    c.width = cols;
+    c.height = rows;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.imageSmoothingQuality = "high";
+    g.drawImage(source, 0, 0, cols, rows);
+    const data = g.getImageData(0, 0, cols, rows).data;
+
+    const mask = new Float32Array(cols * rows);
+    for (let i = 0; i < mask.length; i++) mask[i] = data[i * 4 + 3] / 255;
+    let bulge = blur(mask, cols, rows, 3);
+    bulge = blur(bulge, cols, rows, 3);
+    // lightly softened silhouette: edge dots fade and shrink instead of stair-stepping
+    const soft = blur(mask, cols, rows, 1);
+
+    const planeW = (PLANE_H * iw) / ih;
+    const cell = planeW / cols;
+
+    const pos = [], col = [], head = [], edge = [];
+
+    for (let j = 0; j < rows; j++) {
+        for (let i = 0; i < cols; i++) {
+            const k = j * cols + i;
+            if (soft[k] < 0.12 || mask[k] < 0.02) continue;
+            const r = data[k * 4] / 255, gg = data[k * 4 + 1] / 255, b = data[k * 4 + 2] / 255;
+            const lumRaw = 0.299 * r + 0.587 * gg + 0.114 * b;
+            const l = Math.min(1, Math.max(0, (lumRaw - 0.05) / 0.8));
+            const v = (j + 0.5) / rows;
+
+            // tiny jitter so the face stays sharp
+            const x = ((i + 0.5 + (Math.random() - 0.5) * 0.04) / cols - 0.5) * planeW;
+            const y = (0.5 - (j + 0.5 + (Math.random() - 0.5) * 0.04) / rows) * PLANE_H;
+            const z = Math.pow(bulge[k], 1.6) * 0.5 + l * 0.12 - 0.2;
+
+            pos.push(x, y, z);
+            col.push(r, gg, b);
+            head.push(1 - sstep(0.5, 0.575, v));
+            edge.push(sstep(0.12, 0.8, soft[k]));
+        }
+    }
+
+    return { pos, col, head, edge, cell, n: head.length };
 }
 
 function PortraitCanvas({ src }) {
@@ -198,110 +283,150 @@ function PortraitCanvas({ src }) {
         if (!mount) return;
 
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        let disposed = false;
 
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        renderer.setPixelRatio(pixelRatio);
         renderer.setClearColor(0x000000, 0);
         mount.appendChild(renderer.domElement);
-        renderer.domElement.style.width = "100%";
-        renderer.domElement.style.height = "100%";
-        renderer.domElement.style.display = "block";
+        Object.assign(renderer.domElement.style, { width: "100%", height: "100%", display: "block" });
 
         const scene = new THREE.Scene();
-        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 50);
+        camera.position.y = -0.15;
 
         const uniforms = {
-            uTex: { value: null },
-            uRes: { value: new THREE.Vector2(1, 1) },
-            uImgAspect: { value: 0.8 },
-            uReveal: { value: 0 },
-            uDissolve: { value: 0 },
-            uAccent: { value: new THREE.Color(ORANGE) },
-            uFocus: { value: new THREE.Vector2(FACE_X, 1.0 - FACE_Y) },
-            uFrame: { value: new THREE.Vector2(FRAME_X, 1.0 - FRAME_Y) },
-            uKey: { value: KEY_STRENGTH },
-            uKeyRange: { value: new THREE.Vector2(KEY_LOW, KEY_HIGH) },
+            uTime: { value: 0 },
+            uReveal: { value: reduceMotion ? 1 : 0 },
+            uDot: { value: 0.02 },
+            uPPU: { value: 100 },
+            uZ: { value: 6 },
+            uHead: { value: new THREE.Vector3() }, // stays (0, 0, 0): head is still
+            uPivot: { value: new THREE.Vector2(HEAD_PIVOT[0], HEAD_PIVOT[1]) },
+            uBreath: { value: 0 },
+            uMouse: { value: new THREE.Vector2() },
+            uLife: { value: 0 }, // fades to 1 after the intro (stays 0 with reduced motion)
         };
-
         const material = new THREE.ShaderMaterial({
             uniforms,
             vertexShader,
             fragmentShader,
             transparent: true,
+            depthWrite: false,
         });
-        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
-        scene.add(quad);
 
-        const applyTexture = (tex) => {
-            tex.minFilter = THREE.LinearFilter;
-            uniforms.uTex.value = tex;
-            const img = tex.image;
-            uniforms.uImgAspect.value = img && img.width ? img.width / img.height : 0.8;
-        };
-
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin("anonymous"); // needed for remote images in WebGL
-        loader.load(
-            src,
-            applyTexture,
-            undefined,
-            () => applyTexture(makeFallbackTexture())
-        );
+        let geo = null;
+        const tanH = Math.tan((FOV * Math.PI) / 360);
 
         const resize = () => {
-            const { clientWidth: w, clientHeight: h } = mount;
+            const w = mount.clientWidth, h = mount.clientHeight;
             if (!w || !h) return;
             renderer.setSize(w, h, false);
-            uniforms.uRes.value.set(w, h);
+            camera.aspect = w / h;
+            const zH = 3.7 / 2 / tanH;
+            const zW = VIEW_W / 2 / (camera.aspect * tanH);
+            camera.position.z = Math.max(zH, zW);
+            camera.updateProjectionMatrix();
+            uniforms.uZ.value = camera.position.z;
+            uniforms.uPPU.value = (h * pixelRatio) / (2 * camera.position.z * tanH);
+            if (reduceMotion) renderer.render(scene, camera);
         };
+
+        /* ---------- build the dots once the photo is ready ---------- */
+        (async () => {
+            let source;
+            try {
+                source = await loadImage(src);
+            } catch {
+                source = fallbackCanvas();
+            }
+            if (disposed) return;
+
+            const cols = mount.clientWidth < 640 ? DOTS_MOBILE : DOTS_DESKTOP;
+            const S = analysePhoto(source, cols);
+            const N = S.n;
+
+            const position = new Float32Array(S.pos);
+            const aCol = new Float32Array(S.col);
+            const aHead = new Float32Array(S.head);
+            const aEdge = new Float32Array(S.edge);
+            const aRand = new Float32Array(N);
+            for (let i = 0; i < N; i++) aRand[i] = Math.random();
+
+            geo = new THREE.BufferGeometry();
+            geo.setAttribute("position", new THREE.BufferAttribute(position, 3));
+            geo.setAttribute("aCol", new THREE.BufferAttribute(aCol, 3));
+            geo.setAttribute("aRand", new THREE.BufferAttribute(aRand, 1));
+            geo.setAttribute("aHead", new THREE.BufferAttribute(aHead, 1));
+            geo.setAttribute("aEdge", new THREE.BufferAttribute(aEdge, 1));
+
+            const points = new THREE.Points(geo, material);
+            points.frustumCulled = false;
+            scene.add(points);
+            uniforms.uDot.value = S.cell * 1.05;
+            resize();
+        })();
+
         resize();
         const ro = new ResizeObserver(resize);
         ro.observe(mount);
 
-        // reveal wipe (GSAP drives a shader uniform)
-        const revealTween = gsap.to(uniforms.uReveal, {
-            value: 1.35,
-            duration: reduceMotion ? 0 : 1.4,
-            ease: "power3.inOut",
-            delay: 0.2,
-        });
-
-        // scroll: the photo softly fades away as the hero leaves the screen
-        const section = mount.closest("section") || mount;
-        const dissolveTrigger = reduceMotion
+        const revealTween = reduceMotion
             ? null
-            : ScrollTrigger.create({
-                trigger: section,
-                start: "top top",
-                end: "bottom 40%",
-                scrub: 0.5,
-                onUpdate: (self) => {
-                    uniforms.uDissolve.value = self.progress;
-                },
-            });
+            : gsap.to(uniforms.uReveal, { value: 1, duration: 3.4, ease: "power1.inOut", delay: 0.3 });
 
-        // only render while visible
+        // idle life fades in once the intro has landed
+        const lifeTween = reduceMotion
+            ? null
+            : gsap.to(uniforms.uLife, { value: 1, duration: 2, ease: "power1.inOut", delay: 3.4 });
+
         let visible = true;
         const io = new IntersectionObserver(([en]) => (visible = en.isIntersecting), { threshold: 0 });
         io.observe(mount);
 
-        let raf;
+        // cursor parallax target (-1..1 across the portrait)
+        const mouseTarget = new THREE.Vector2();
+        const onPointer = (e) => {
+            const r = mount.getBoundingClientRect();
+            mouseTarget.set(
+                ((e.clientX - r.left) / r.width - 0.5) * 2,
+                -((e.clientY - r.top) / r.height - 0.5) * 2
+            );
+        };
+        const onLeave = () => mouseTarget.set(0, 0);
+        if (!reduceMotion) {
+            window.addEventListener("pointermove", onPointer, { passive: true });
+            window.addEventListener("pointerleave", onLeave);
+        }
+
+        let raf = 0;
+        const clock = new THREE.Clock();
         const tick = () => {
             raf = requestAnimationFrame(tick);
-            if (!visible || !uniforms.uTex.value) return;
+            if (!visible) return;
+            const t = clock.getElapsedTime();
+            uniforms.uTime.value = t;
+
+            // slow breathing + smoothed cursor follow. Head rotation (uHead) stays at 0.
+            uniforms.uBreath.value = Math.sin(t * BREATH_SPEED);
+            uniforms.uMouse.value.lerp(mouseTarget, 0.04);
+
             renderer.render(scene, camera);
         };
-        tick();
+        if (!reduceMotion) tick();
 
         return () => {
+            disposed = true;
             cancelAnimationFrame(raf);
-            revealTween.kill();
-            if (dissolveTrigger) dissolveTrigger.kill();
+            if (revealTween) revealTween.kill();
+            if (lifeTween) lifeTween.kill();
+            window.removeEventListener("pointermove", onPointer);
+            window.removeEventListener("pointerleave", onLeave);
             io.disconnect();
             ro.disconnect();
             material.dispose();
-            quad.geometry.dispose();
-            uniforms.uTex.value?.dispose?.();
+            if (geo) geo.dispose();
             renderer.dispose();
             if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
         };
@@ -311,9 +436,31 @@ function PortraitCanvas({ src }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Small icons                                                        */
+/* ------------------------------------------------------------------ */
+const TagIcon = () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" />
+        <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" />
+    </svg>
+);
+const ArrowIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M7 17 17 7M8 7h9v9" />
+    </svg>
+);
+const ChatIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
+    </svg>
+);
+
+/* ------------------------------------------------------------------ */
 /*  Framer Motion – magnetic button                                    */
 /* ------------------------------------------------------------------ */
-function MagneticButton({ children, primary = false, onClick }) {
+function MagneticButton({ children, icon, primary = false, onClick }) {
+    // dot-grid fill, same language as the portrait
+    const fill = primary ? dotGrid("rgba(233,79,37,0.85)", 4, 1.5) : dotGrid("rgba(243,239,232,0.30)", 4, 1.1);
     const ref = useRef(null);
     const x = useMotionValue(0);
     const y = useMotionValue(0);
@@ -322,8 +469,8 @@ function MagneticButton({ children, primary = false, onClick }) {
 
     const onMove = (e) => {
         const r = ref.current.getBoundingClientRect();
-        x.set((e.clientX - (r.left + r.width / 2)) * 0.25);
-        y.set((e.clientY - (r.top + r.height / 2)) * 0.35);
+        x.set((e.clientX - (r.left + r.width / 2)) * 0.2);
+        y.set((e.clientY - (r.top + r.height / 2)) * 0.3);
     };
     const reset = () => {
         x.set(0);
@@ -337,38 +484,18 @@ function MagneticButton({ children, primary = false, onClick }) {
             onClick={onClick}
             onMouseMove={onMove}
             onMouseLeave={reset}
-            style={{ x: sx, y: sy }}
-            whileTap={{ scale: 0.96 }}
+            style={{ x: sx, y: sy, ...fill, textShadow: "0 1px 8px rgba(0,0,0,0.75)" }}
+            whileTap={{ scale: 0.97 }}
             className={
-                "rounded-full px-6 py-3 text-sm font-medium transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 " +
+                "inline-flex cursor-pointer items-center gap-2.5 rounded-xl border-2 border-dotted px-5 py-3 text-[13px] font-medium text-white transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white " +
                 (primary
-                    ? "bg-white text-black hover:bg-[#e94f25] hover:text-white focus-visible:outline-white"
-                    : "border border-white/25 bg-white/5 text-white backdrop-blur hover:border-white/60 hover:bg-white/10 focus-visible:outline-white")
+                    ? "border-[#e94f25] bg-[#e94f25]/20 hover:bg-[#e94f25]/45"
+                    : "border-white/45 bg-white/5 hover:border-white/80 hover:bg-white/10")
             }
         >
             {children}
+            {icon}
         </motion.button>
-    );
-}
-
-/* One line of the right-hand note, split into letters like the name so it can
-   rise in and dissolve letter by letter. */
-function NoteLine({ text, className = "" }) {
-    return (
-        <p className={"whitespace-nowrap " + className}>
-            <span className="sr-only">{text}</span>
-            {text.split("").map((ch, i) => (
-                <span
-                    key={i}
-                    aria-hidden="true"
-                    className="inline-block overflow-hidden align-bottom px-[0.05em] -mx-[0.05em] pb-[0.2em] -mb-[0.2em]"
-                >
-                    <span data-note-letter className="inline-block will-change-transform">
-                        {ch === " " ? "\u00A0" : ch}
-                    </span>
-                </span>
-            ))}
-        </p>
     );
 }
 
@@ -377,10 +504,7 @@ function NoteLine({ text, className = "" }) {
 /* ------------------------------------------------------------------ */
 export default function Hero() {
     const rootRef = useRef(null);
-    const nameRef = useRef(null);
-    const portraitRef = useRef(null);
 
-    // load display + body fonts once
     useEffect(() => {
         const id = "hero-fonts";
         if (document.getElementById(id)) return;
@@ -388,134 +512,40 @@ export default function Hero() {
         link.id = id;
         link.rel = "stylesheet";
         link.href =
-            "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap";
+            "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap";
         document.head.appendChild(link);
     }, []);
 
-    // GSAP: name entrance, mouse parallax, scroll parallax
     useEffect(() => {
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const ctx = gsap.context(() => {
-            const letters = nameRef.current.querySelectorAll("[data-letter]");
+            if (reduceMotion) return;
 
-            if (!reduceMotion) {
-                gsap.set(letters, { yPercent: 110, rotate: 6, opacity: 0 });
-                gsap
-                    .timeline({ delay: 0.5 })
-                    .to(letters, {
-                        yPercent: 0,
-                        rotate: 0,
-                        opacity: 1,
-                        duration: 1.3,
-                        ease: "expo.out",
-                        stagger: 0.055,
-                    })
-                    .from(
-                        "[data-fade]",
-                        { opacity: 0, y: 18, duration: 0.9, ease: "power3.out", stagger: 0.12 },
-                        "-=0.7"
-                    )
-                    // right-hand note: letters rise into place, like the name
-                    .from(
-                        "[data-note-letter]",
-                        { yPercent: 110, rotate: 6, opacity: 0, duration: 1.1, ease: "expo.out", stagger: 0.03 },
-                        "-=1.3"
-                    );
-            }
-
-            // mouse parallax: only the name drifts – the portrait stays still
-            const nameX = gsap.quickTo(nameRef.current, "x", { duration: 0.9, ease: "power3.out" });
-            const nameY = gsap.quickTo(nameRef.current, "y", { duration: 0.9, ease: "power3.out" });
-            const noteEl = rootRef.current.querySelector("[data-note-wrap]");
-            const noteX = noteEl && gsap.quickTo(noteEl, "x", { duration: 1.1, ease: "power3.out" });
-            const noteY = noteEl && gsap.quickTo(noteEl, "y", { duration: 1.1, ease: "power3.out" });
-
-            const onMove = (e) => {
-                if (reduceMotion) return;
-                const nx = e.clientX / window.innerWidth - 0.5;
-                const ny = e.clientY / window.innerHeight - 0.5;
-                nameX(nx * 26);
-                nameY(ny * 14);
-                if (noteEl) {
-                    noteX(nx * -14);
-                    noteY(ny * -8);
-                }
-            };
-            window.addEventListener("pointermove", onMove);
-
-            // scroll parallax: portrait slower than name
-            if (!reduceMotion) {
-                gsap.to("[data-parallax='slow']", {
-                    yPercent: 6,
-                    ease: "none",
-                    scrollTrigger: { trigger: rootRef.current, start: "top top", end: "bottom top", scrub: true },
-                });
-                gsap.to("[data-parallax='fast']", {
-                    yPercent: -16,
-                    ease: "none",
-                    scrollTrigger: { trigger: rootRef.current, start: "top top", end: "bottom top", scrub: true },
-                });
-
-                // minimal dissolve, same idea as the portrait: letters break away in a ragged
-                // left-to-right sweep, drift up and right with the "wind", and turn ember orange
-                const n = letters.length;
-                const dissolve = gsap.timeline({
-                    scrollTrigger: { trigger: rootRef.current, start: "top top", end: "bottom 40%", scrub: 0.5 },
-                });
-                letters.forEach((el, i) => {
-                    const sweep = n > 1 ? i / (n - 1) : 0;
-                    const at = (sweep * 0.65 + Math.random() * 0.35) * 0.7;
-                    dissolve.fromTo(
-                        el.parentElement, // the clipping wrapper, so the entrance tween is left alone
-                        { x: 0, y: 0, rotate: 0, opacity: 1, filter: "blur(0px)", color: "#f3efe8" },
-                        {
-                            x: gsap.utils.random(18, 70),
-                            y: gsap.utils.random(-60, -15),
-                            rotate: gsap.utils.random(-18, 18),
-                            opacity: 0,
-                            filter: "blur(6px)",
-                            color: ORANGE,
-                            ease: "power2.in",
-                            duration: 0.3,
-                            immediateRender: false,
-                        },
-                        at
-                    );
-                });
-                // tagline + buttons just melt away a little earlier
-                dissolve.fromTo(
-                    "[data-soft]",
-                    { opacity: 1, y: 0, filter: "blur(0px)" },
-                    { opacity: 0, y: -24, filter: "blur(8px)", ease: "power1.in", duration: 0.35, immediateRender: false },
-                    0.05
+            gsap
+                .timeline({ delay: 0.35 })
+                .from(
+                    "[data-fade]",
+                    {
+                        opacity: 0,
+                        y: 28,
+                        filter: "blur(8px)",
+                        duration: 0.9,
+                        ease: "power3.out",
+                        stagger: 0.12,
+                        clearProps: "filter",
+                    }
                 );
-                // right-hand note: exactly the same letter-by-letter dissolve as the name
-                const noteLetters = gsap.utils.toArray("[data-note-letter]");
-                const m = noteLetters.length;
-                noteLetters.forEach((el, i) => {
-                    const wrap = el.parentElement;
-                    const sweep = m > 1 ? i / (m - 1) : 0;
-                    const at = (sweep * 0.65 + Math.random() * 0.35) * 0.7;
-                    dissolve.fromTo(
-                        wrap,
-                        { x: 0, y: 0, rotate: 0, opacity: 1, filter: "blur(0px)", color: getComputedStyle(wrap).color },
-                        {
-                            x: gsap.utils.random(18, 70),
-                            y: gsap.utils.random(-60, -15),
-                            rotate: gsap.utils.random(-18, 18),
-                            opacity: 0,
-                            filter: "blur(6px)",
-                            color: ORANGE,
-                            ease: "power2.in",
-                            duration: 0.3,
-                            immediateRender: false,
-                        },
-                        at
-                    );
-                });
-            }
 
-            return () => window.removeEventListener("pointermove", onMove);
+            // the badge + intro text still fade away on scroll; the portrait no longer does
+            const dissolve = gsap.timeline({
+                scrollTrigger: { trigger: rootRef.current, start: "top top", end: "bottom 40%", scrub: 0.5 },
+            });
+            dissolve.fromTo(
+                "[data-soft]",
+                { opacity: 1, y: 0, filter: "blur(0px)" },
+                { opacity: 0, y: -44, filter: "blur(10px)", ease: "power1.in", duration: 0.45, immediateRender: false },
+                0.15
+            );
         }, rootRef);
 
         return () => ctx.revert();
@@ -530,140 +560,71 @@ export default function Hero() {
         <section
             ref={rootRef}
             id="home"
-            className="relative flex min-h-screen w-full items-end justify-center overflow-hidden bg-black text-white"
-            style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+            className="relative flex min-h-screen w-full flex-col overflow-hidden pt-16 md:flex-row md:items-center md:pt-0"
+            style={{ background: BG, color: INK, fontFamily: "'Inter', system-ui, sans-serif" }}
         >
-            {/* ambient glow */}
+            {/* faint dot field behind the text, fades out toward the portrait */}
             <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0"
+                className="pointer-events-none absolute inset-0 [--dot-x:50%] md:[--dot-x:15%]"
                 style={{
-                    background:
-                        "radial-gradient(60% 50% at 62% 30%, rgba(233,79,37,0.22) 0%, rgba(233,79,37,0) 60%), radial-gradient(40% 40% at 20% 80%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 70%)",
+                    ...dotGrid("rgba(243,239,232,0.13)", 22, 1.2),
+                    WebkitMaskImage: "radial-gradient(ellipse 60% 70% at var(--dot-x, 50%) 50%, #000 0%, transparent 100%)",
+                    maskImage: "radial-gradient(ellipse 60% 70% at var(--dot-x, 50%) 50%, #000 0%, transparent 100%)",
                 }}
             />
 
-            {/* fine grain */}
+            {/* dotted portrait (Three.js) */}
             <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 opacity-[0.07] mix-blend-screen"
-                style={{
-                    backgroundImage:
-                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-                }}
-            />
-
-            {/* right side note – desktop only, vertically centred to mirror the name on the left */}
-            <div
-                data-note-wrap
-                className="absolute inset-y-0 right-5 hidden items-center md:flex lg:right-10"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                className="relative z-0 h-[44vh] w-full shrink-0 md:absolute md:bottom-0 md:right-0 md:h-[94vh] md:w-[62vw] md:max-w-[960px]"
+                role="img"
+                aria-label={`Portrait of ${NAME}, drawn as a field of dots`}
             >
-                <div data-note className="text-right">
-                    <NoteLine
-                        text="BASED IN INDIA"
-                        className="text-[12px] tracking-[0.25em] text-[#e94f25] lg:text-[13px]"
-                    />
-                    <NoteLine
-                        text="Open to freelance & collabs"
-                        className="mt-3 text-[14px] leading-snug text-white/70 lg:text-base"
-                    />
-                </div>
-            </div>
-
-            {/* portrait (Three.js) – face sits near the middle, name sits below the chin */}
-            <div
-                data-parallax="slow"
-                className="absolute left-1/2 top-[12vh] h-[58vh] w-[min(78vw,320px)] -translate-x-1/2 md:top-auto md:h-[100vh] md:w-[min(84vw,460px)]"
-            >
-                <div ref={portraitRef} className="relative h-full w-full">
-                    <PortraitCanvas src={PORTRAIT_SRC} />
-                </div>
-            </div>
-
-            {/* looping label just under the chin (desktop) – follows FRAME_Y */}
-            <div
-                data-fade
-                className="absolute left-1/2 z-10 hidden -translate-x-1/2 md:block"
-                style={{
-                    top: `${FRAME_Y * 100 + 12}vh`,
-                    fontFamily: "'JetBrains Mono', monospace",
-                }}
-            >
+                <PortraitCanvas src={PORTRAIT_SRC} />
+                {/* mobile only: soft blend from the portrait into the text below */}
                 <div
-                    className="w-[300px] overflow-hidden text-[10px] tracking-[0.3em] text-white/60"
-                    style={{
-                        WebkitMaskImage: "linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent)",
-                        maskImage: "linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent)",
-                    }}
-                >
-                    <motion.div
-                        className="flex w-max whitespace-nowrap"
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
-                    >
-                        {[0, 1].map((k) => (
-                            <span key={k} className="pr-10">
-                                {MARQUEE}
-                            </span>
-                        ))}
-                    </motion.div>
-                </div>
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black to-transparent md:hidden"
+                />
             </div>
 
             {/* content */}
-            <div className="relative z-10 flex w-full flex-col items-center px-5 pb-[13vh] text-center md:static md:pb-[5vh]">
-                {/* name */}
-                <div className="md:absolute md:inset-y-0 md:left-5 md:flex md:items-center lg:left-10">
-                    <div data-parallax="fast">
-                        <h1
-                            ref={nameRef}
-                            aria-label={NAME}
-                            className="select-none whitespace-nowrap leading-[0.95] [font-size:clamp(3rem,9.5vw,11rem)] md:text-left md:[font-size:clamp(3rem,7vw,8rem)]"
-                            style={{
-                                fontFamily: "'Instrument Serif', Georgia, serif",
-                                color: "#f3efe8",
-                                letterSpacing: "-0.02em",
-                                textShadow: "0 6px 40px rgba(0,0,0,0.65)",
-                            }}
+            <div className="relative z-10 mx-auto w-full max-w-[1400px] px-6 pb-14 pt-3 text-center md:px-12 md:pb-0 md:pt-0 md:text-left lg:px-20">
+                <div className="mx-auto max-w-[640px] md:mx-0">
+                    <h1 className="sr-only">{NAME} – developer and automation builder</h1>
+                    <div data-fade data-soft className="flex justify-center md:justify-start">
+                        <span
+                            className="inline-flex items-center gap-2 rounded-full border-2 border-dotted border-[#e94f25]/60 bg-[#e94f25]/10 px-3.5 py-1.5 text-[11px] text-[#ff9a7a]"
+                            style={dotGrid("rgba(233,79,37,0.35)", 4, 1)}
                         >
-                            {NAME.split(" ").map((word, wi) => (
-                                <span key={wi} className={"inline-block md:block " + (wi > 0 ? "md:ml-[0.8em]" : "")} style={{ fontStyle: wi === 0 ? "normal" : "italic" }}>
-                                    {word.split("").map((ch, i) => (
-                                        <span key={i} className="inline-block overflow-hidden align-bottom px-[0.05em] -mx-[0.05em] pb-[0.12em] -mb-[0.12em]">
-                                            <span data-letter className="inline-block will-change-transform">
-                                                {ch}
-                                            </span>
-                                        </span>
-                                    ))}
-                                    {wi === 0 && <span className="inline-block w-[0.28em] md:hidden" />}
-                                </span>
-                            ))}
-                        </h1>
+                            <TagIcon />
+                            {BADGE}
+                        </span>
                     </div>
-                </div>
 
-                <div data-soft className="flex flex-col items-center">
-                    {/* tagline */}
-                    <p
-                        data-fade
-                        className="mt-4 max-w-[36ch] text-[15px] leading-relaxed text-white/80 sm:text-lg"
-                    >
-                        I build products, automate workflows, and help businesses grow online.
-                    </p>
+                    <div data-soft>
+                        <div
+                            data-fade
+                            aria-hidden="true"
+                            className="mx-auto mt-5 h-[7px] w-32 md:mx-0 md:mt-6"
+                            style={dotGrid(ORANGE, 7, 1.7)}
+                        />
+                        <p data-fade className="mx-auto mt-4 max-w-[46ch] text-[13px] leading-relaxed text-white/70 sm:text-sm md:mx-0 md:mt-5">
+                            {INTRO}
+                        </p>
 
-                    {/* CTAs */}
-                    <div data-fade className="mt-7 flex flex-wrap items-center justify-center gap-3">
-                        <MagneticButton primary onClick={() => scrollTo("work")}>
-                            Explore my work
-                        </MagneticButton>
-                        <MagneticButton onClick={() => scrollTo("contact")}>Start a conversation</MagneticButton>
+                        <div data-fade className="mt-6 flex flex-wrap items-center justify-center gap-3 md:mt-8 md:justify-start">
+                            <MagneticButton primary icon={<ArrowIcon />} onClick={() => scrollTo("work")}>
+                                View My Work
+                            </MagneticButton>
+                            <MagneticButton icon={<ChatIcon />} onClick={() => scrollTo("contact")}>
+                                Let&apos;s Talk
+                            </MagneticButton>
+                        </div>
                     </div>
                 </div>
             </div>
 
-
-            {/* bottom fade into next section */}
             <div
                 aria-hidden="true"
                 className="pointer-events-none absolute bottom-0 left-0 h-32 w-full bg-gradient-to-t from-black to-transparent"
