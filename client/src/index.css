@@ -1,77 +1,92 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------ */
-/*  Base                                                               */
-/* ------------------------------------------------------------------ */
+/* ==========================================================
+   Theme tokens
+   Light is the default. Navbar.jsx sets <html data-theme="dark">
+   to switch to the dark values below.
+   ========================================================== */
 :root {
-  --orange: #e94f25;
-  --ink: #f3efe8;
-  --track: #080808;
+  color-scheme: light;
+
+  /* surfaces + text */
+  --paper: #ffffff;
+  --ink: #111111;
+  --muted: #6b7280;
+  --line: #d9dde3;
+  --mist: #e5e7eb;
+
+  /* brand */
+  --navy: #1f3a5f;
+  --water-dark: #111111; /* fill rising inside the primary button */
+
+  /* navbar */
+  --bar: rgba(255, 255, 255, 0.92);
+  --bar-shadow: rgba(17, 17, 17, 0.06);
+  --blob-opacity: 0.1;
+
+  /* motion */
+  --ease-water: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-drop: cubic-bezier(0.34, 1.45, 0.64, 1);
+
+  /* type */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
+
+  --paper: #0d1014;
+  --ink: #f3f4f6;
+  --muted: #9aa3af;
+  --line: #262b33;
+  --mist: #1a1f27;
+
+  --navy: #4a78c2;
+  --water-dark: #1b2a44;
+
+  --bar: rgba(13, 16, 20, 0.88);
+  --bar-shadow: rgba(0, 0, 0, 0.45);
+  --blob-opacity: 0.22;
 }
 
+/* ==========================================================
+   Tailwind v4 hooks
+   - Lets you write bg-paper, text-ink, text-muted, border-line,
+     bg-navy, bg-mist in your other sections; they follow the theme.
+   - `dark:` utilities use data-theme instead of the OS setting.
+   ========================================================== */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-mist: var(--mist);
+  --color-navy: var(--navy);
+  --font-sans: var(--font-sans);
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ==========================================================
+   Base
+   ========================================================== */
 html {
-  background: #000;
-  scroll-behavior: smooth;
+  font-family: var(--font-sans);
 }
 
-::selection {
-  background: rgba(233, 79, 37, 0.5);
-  color: #fff;
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  transition:
+    background 0.5s ease,
+    color 0.5s ease;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Scrollbar – thin, same dotted language as the rest of the site     */
-/* ------------------------------------------------------------------ */
-
-/* Chrome, Edge, Safari */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-/* track: faint dot field */
-::-webkit-scrollbar-track {
-  background-color: var(--track);
-  background-image: radial-gradient(
-    circle at center,
-    rgba(243, 239, 232, 0.14) 0.8px,
-    transparent 1.1px
-  );
-  background-size: 5px 5px;
-}
-
-/* thumb: orange dot-grid fill with a dotted border */
-::-webkit-scrollbar-thumb {
-  background-color: rgba(233, 79, 37, 0.2);
-  background-image: radial-gradient(
-    circle at center,
-    rgba(233, 79, 37, 0.9) 1px,
-    transparent 1.3px
-  );
-  background-size: 3px 3px;
-  border: 1px dotted var(--orange);
-  border-radius: 999px;
-  transition: background-color 0.3s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(233, 79, 37, 0.45);
-}
-
-::-webkit-scrollbar-thumb:active {
-  background-color: rgba(233, 79, 37, 0.6);
-}
-
-::-webkit-scrollbar-corner {
-  background: var(--track);
-}
-
-/* Firefox (and any browser without ::-webkit-scrollbar).
-   Kept inside @supports so Chrome keeps using the dotted version above. */
-@supports not selector(::-webkit-scrollbar) {
-  html {
-    scrollbar-width: thin;
-    scrollbar-color: var(--orange) var(--track);
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
   }
 }

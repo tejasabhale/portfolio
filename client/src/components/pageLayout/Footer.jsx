@@ -1,152 +1,136 @@
-import { useEffect } from "react";
-import { Mail, FileText, ArrowUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
-/* Brand icons – newer lucide-react versions no longer ship these, so they live here as inline SVGs */
-const brand = (d) =>
-  function BrandIcon(props) {
-    return (
-      <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d={d} />
-      </svg>
-    );
-  };
+/**
+ * Footer.jsx — slim footer that matches Contact.jsx / Navbar.jsx.
+ *
+ * - One row: copyright on the left, "Back to top" on the right.
+ * - Both rise into view together when the footer appears.
+ * - Back to top: round button fills upward like water, the arrow lifts.
+ *
+ * Colors and easings come only from index.css variables.
+ */
 
-const Github = brand(
-  "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
-);
-const XIcon = brand(
-  "M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"
-);
-const Linkedin = brand(
-  "M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
-);
-
-/* ------------------------------------------------------------------ */
-/*  CONFIG – edit these                                                */
-/* ------------------------------------------------------------------ */
 const NAME = "Tejas Abhale";
 
-const LINKS = [
-  { label: "GitHub", href: "https://github.com/tejasabhale", Icon: Github },
-  { label: "Twitter", href: "https://x.com/Tejas55451", Icon: XIcon },
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/tejas-abhale-50743128a/", Icon: Linkedin },
-  { label: "Email", href: "mailto:abhaletejas4@gmail.com", Icon: Mail },
-  { label: "Resume", href: "https://drive.google.com/file/d/1yOv3_-qdAI7xNu9SgfPjZcomwgnIEv8_/view?usp=sharing&usp=embed_facebook", Icon: FileText }, // put resume.pdf in your /public folder
-];
-
-const MONO = { fontFamily: "'JetBrains Mono', monospace" };
-const SERIF = { fontFamily: "'Instrument Serif', Georgia, serif" };
-
-/* ------------------------------------------------------------------ */
-/*  Dot style – same dotted look as the hero portrait, in plain CSS    */
-/* ------------------------------------------------------------------ */
-const ORANGE = "#e94f25";
-const DOT_INK = "#e6e1d9"; // dot colour for white text (slightly dimmed, like the portrait)
-
-// a field of round dots, e.g. for fills
-const dotGrid = (color, cell = 4, radius = 1.2) => ({
-  backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
-  backgroundSize: `${cell}px ${cell}px`,
-});
-
-// text drawn as dots: a dot field clipped to the letter shapes, over a faint solid fill so it stays readable
-const dotText = (dot, faint, cell = 3.5) => {
-  const r = cell * 0.37;
-  return {
-    backgroundImage: `radial-gradient(circle at center, ${dot} ${r}px, transparent ${r + 0.35}px), linear-gradient(${faint}, ${faint})`,
-    backgroundSize: `${cell}px ${cell}px, 100% 100%`,
-    WebkitBackgroundClip: "text",
-    backgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    color: "transparent",
-  };
-};
-const textInk = (cell) => dotText(DOT_INK, "rgba(230,225,217,0.26)", cell);
-const textAccent = (cell) => dotText(ORANGE, "rgba(233,79,37,0.30)", cell);
-
 export default function Footer() {
-  // same fonts as the other sections – only added once
+  const [shown, setShown] = useState(false);
+  const ref = useRef(null);
+
+  /* reveal once when the footer scrolls into view */
   useEffect(() => {
-    const id = "hero-fonts";
-    if (document.getElementById(id)) return;
-    const link = document.createElement("link");
-    link.id = id;
-    link.rel = "stylesheet";
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap";
-    document.head.appendChild(link);
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
 
-  const [first, ...rest] = NAME.split(" ");
-
-  const scrollToTop = () => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-  };
-
   return (
-    <footer
-      className="relative w-full border-t-2 border-dotted border-[#333] bg-black text-white"
-      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
-    >
-      {/* faint dot field, fading out toward the top edge */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          ...dotGrid("rgba(243,239,232,0.08)", 22, 1.2),
-          WebkitMaskImage: "linear-gradient(to top, #000, transparent)",
-          maskImage: "linear-gradient(to top, #000, transparent)",
-        }}
-      />
+    <footer ref={ref} className={`ft ${shown ? "is-in" : ""}`}>
+      <style>{css}</style>
 
-      {/* name left, icons only on the right – same on every screen size */}
-      <div className="relative z-10 mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:py-4 lg:px-10">
-        {/* name */}
-        <p
-          className="flex min-w-0 items-center gap-2 text-lg leading-none tracking-[-0.01em] sm:gap-2.5 sm:text-xl"
-          style={SERIF}
-        >
-          <span className="truncate">
-            <span style={textInk(2.5)}>{first} </span>
-            <span className="italic" style={textAccent(2.5)}>{rest.join(" ")}</span>
-          </span>
+      <div className="ft-inner">
+        <p className="ft-copy ft-rise" style={{ "--i": 0 }}>
+          © {new Date().getFullYear()} {NAME}
         </p>
 
-        {/* links */}
-        <ul className="flex shrink-0 items-center sm:gap-2" style={MONO}>
-          {LINKS.map(({ label, href, Icon }) => {
-            const opensNewTab = href.startsWith("http") || label === "Resume";
-            return (
-              <li key={label}>
-                <a
-                  href={href}
-                  aria-label={label}
-                  title={label}
-                  {...(opensNewTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className="flex items-center rounded-full border-2 border-dotted border-transparent p-2.5 text-white/55 transition-colors duration-300 hover:border-[#e94f25] hover:bg-[#e94f25]/15 hover:text-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:p-3"
-                >
-                  <Icon className="h-[18px] w-[18px] shrink-0 sm:h-4 sm:w-4" strokeWidth={1.6} aria-hidden="true" />
-                </a>
-              </li>
-            );
-          })}
-
-          {/* scroll to top */}
-          <li className="ml-1 sm:ml-2">
-            <button
-              type="button"
-              onClick={scrollToTop}
-              aria-label="Scroll to top"
-              title="Back to top"
-              className="flex cursor-pointer items-center rounded-full border-2 border-dotted border-[#3a3a3a] p-2 text-white/55 transition-colors duration-300 hover:border-[#e94f25] hover:bg-[#e94f25]/20 hover:text-[#e94f25] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:p-2.5"
-              style={dotGrid("rgba(243,239,232,0.1)", 4, 0.9)}
-            >
-              <ArrowUp className="h-[18px] w-[18px] shrink-0 sm:h-4 sm:w-4" strokeWidth={1.6} aria-hidden="true" />
-            </button>
-          </li>
-        </ul>
+        <a href="#home" className="ft-top-btn ft-rise" style={{ "--i": 1 }} aria-label="Back to top">
+          <span className="ft-top-label">Back to top</span>
+          <span className="ft-top-circle">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden="true">
+              <path d="M12 19V5" />
+              <path d="m5 12 7-7 7 7" />
+            </svg>
+          </span>
+        </a>
       </div>
     </footer>
   );
 }
+
+const css = `
+.ft {
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0 20px;
+  transition: background .5s ease, color .5s ease;
+}
+.ft-inner {
+  margin: 0 auto; width: 100%; max-width: 1100px;
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+}
+
+/* ---------- rise ---------- */
+.ft-rise {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity .9s var(--ease-water),
+    transform 1.1s var(--ease-water);
+  transition-delay: calc(var(--i, 0) * 90ms);
+}
+.ft.is-in .ft-rise { opacity: 1; transform: none; }
+
+/* ---------- text ---------- */
+.ft-copy { margin: 0; font-size: .82rem; color: var(--muted); }
+
+/* ---------- back to top ---------- */
+.ft-top-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  color: var(--muted); text-decoration: none;
+  font-size: .82rem; font-weight: 500;
+  transition:
+    color .5s var(--ease-water),
+    opacity .9s var(--ease-water),
+    transform 1.1s var(--ease-water);
+}
+.ft-top-circle {
+  position: relative; isolation: isolate; overflow: hidden;
+  display: grid; place-items: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--line); border-radius: 50%;
+  color: var(--ink);
+  transition: color .5s var(--ease-water), border-color .5s var(--ease-water);
+}
+/* water fill that rises on hover */
+.ft-top-circle::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: var(--navy);
+  transform: translateY(101%);
+  transition: transform .8s var(--ease-water);
+}
+.ft-top-circle svg { transition: transform .8s var(--ease-drop); }
+
+.ft-top-btn:hover,
+.ft-top-btn:focus-visible { color: var(--ink); }
+.ft-top-btn:hover .ft-top-circle,
+.ft-top-btn:focus-visible .ft-top-circle { color: var(--paper); border-color: var(--navy); }
+.ft-top-btn:hover .ft-top-circle::before,
+.ft-top-btn:focus-visible .ft-top-circle::before { transform: translateY(0); }
+.ft-top-btn:hover .ft-top-circle svg,
+.ft-top-btn:focus-visible .ft-top-circle svg { transform: translateY(-2px); }
+
+.ft-top-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ft *, .ft *::before, .ft *::after {
+    transition-duration: .01s !important;
+    transition-delay: 0s !important;
+  }
+  .ft-rise { opacity: 1; transform: none; }
+}
+`;

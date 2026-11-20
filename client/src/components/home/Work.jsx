@@ -1,23 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import {
-    motion,
-    LayoutGroup,
-    useInView,
-    useMotionValue,
-    useSpring,
-} from "framer-motion";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useEffect, useRef } from "react";
 
-gsap.registerPlugin(ScrollTrigger);
+/**
+ * Work.jsx — projects section that matches Navbar.jsx and Hero.jsx.
+ *
+ * - Each project gets a small drawn preview that fits what it is
+ *   (board, website, feed, seat map). No screenshots needed.
+ * - Cards settle in as they scroll into view. Hovering a card plays its preview.
+ * - Colors come from index.css, so light / dark mode works automatically.
+ *
+ * Usage:
+ *   <Work />
+ * The section has id="projects", so the navbar link and scroll spy work.
+ * No dependencies besides React.
+ */
 
-/* ------------------------------------------------------------------ */
-/*  CONFIG – edit these                                                */
-/* ------------------------------------------------------------------ */
-// kind:   "kanban" | "feed" | "browser" | "booking"  → decides which animated preview is shown
-// url:    optional – adds a "Visit site" button; `display` is what shows in the browser bar
-// github: optional – adds a "GitHub" button (becomes the main button when there is no live url)
-// Projects with a live link come first.
 const PROJECTS = [
     {
         id: "taskflow",
@@ -64,675 +60,369 @@ const PROJECTS = [
     },
 ];
 
-// sample listings for the KrishiLink preview – replace with anything you like
-const FEED = [
-    { n: "Tomatoes", q: "120 kg", p: "₹ 28/kg", loc: "Nashik" },
-    { n: "Onions", q: "2 tonnes", p: "₹ 19/kg", loc: "Lasalgaon" },
-    { n: "Pomegranate", q: "400 kg", p: "₹ 72/kg", loc: "Solapur" },
-    { n: "Wheat", q: "5 tonnes", p: "₹ 26/kg", loc: "Jalna" },
-    { n: "Grapes", q: "300 kg", p: "₹ 55/kg", loc: "Sangli" },
-    { n: "Soybean", q: "3 tonnes", p: "₹ 46/kg", loc: "Latur" },
-];
+/* ---------- small drawn previews ---------- */
 
-// sample tasks for the TaskFlow preview
-const COLUMNS = [
-    { full: "TO DO", short: "TO DO" },
-    { full: "IN PROGRESS", short: "DOING" },
-    { full: "DONE", short: "DONE" },
-];
-const TASKS = {
-    1: { t: "Design onboarding", tag: "UI" },
-    2: { t: "Fix login redirect", tag: "BUG" },
-    3: { t: "Write API docs", tag: "DOCS" },
-    4: { t: "Set up CI pipeline", tag: "DEV" },
-    5: { t: "Review pull request", tag: "DEV" },
-    6: { t: "Ship v1.0", tag: "RELEASE" },
-    7: { t: "Add dark mode", tag: "UI" },
-    8: { t: "Update dependencies", tag: "DEV" },
-};
-const INITIAL_COLS = [[1, 2, 3], [4, 7], [5, 6, 8]];
-
-const MONO = { fontFamily: "'JetBrains Mono', monospace" };
-const SERIF = { fontFamily: "'Instrument Serif', Georgia, serif" };
-
-/* ------------------------------------------------------------------ */
-/*  Dot style – same dotted look as the hero portrait, in plain CSS    */
-/* ------------------------------------------------------------------ */
-const ORANGE = "#e94f25";
-const DOT_INK = "#e6e1d9"; // dot colour for white text (slightly dimmed, like the portrait)
-
-// a field of round dots, e.g. for fills
-const dotGrid = (color, cell = 4, radius = 1.2) => ({
-    backgroundImage: `radial-gradient(circle at center, ${color} ${radius}px, transparent ${radius + 0.35}px)`,
-    backgroundSize: `${cell}px ${cell}px`,
-});
-
-// text drawn as dots: a dot field clipped to the letter shapes, over a faint solid fill so it stays readable
-const dotText = (dot, faint, cell = 3.5) => {
-    const r = cell * 0.37;
-    return {
-        backgroundImage: `radial-gradient(circle at center, ${dot} ${r}px, transparent ${r + 0.35}px), linear-gradient(${faint}, ${faint})`,
-        backgroundSize: `${cell}px ${cell}px, 100% 100%`,
-        WebkitBackgroundClip: "text",
-        backgroundClip: "text",
-        WebkitTextFillColor: "transparent",
-        color: "transparent",
-    };
-};
-const textInk = (cell) => dotText(DOT_INK, "rgba(230,225,217,0.26)", cell);
-const textAccent = (cell) => dotText(ORANGE, "rgba(233,79,37,0.30)", cell);
-
-// true on tablets / desktops – used to pick a dot size that suits the text size
-function useIsWide() {
-    const [wide, setWide] = useState(() =>
-        typeof window !== "undefined" ? window.matchMedia("(min-width: 640px)").matches : true
-    );
-    useEffect(() => {
-        const mq = window.matchMedia("(min-width: 640px)");
-        const on = () => setWide(mq.matches);
-        mq.addEventListener("change", on);
-        return () => mq.removeEventListener("change", on);
-    }, []);
-    return wide;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Link buttons (Visit site / GitHub)                                 */
-/* ------------------------------------------------------------------ */
-const GithubIcon = () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
-    </svg>
-);
-const ArrowIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M7 17 17 7M8 7h9v9" />
-    </svg>
-);
-
-// primary = orange dotted fill (same as the hero's main button); otherwise the quieter white dotted one
-function LinkButton({ href, primary = false, icon, children }) {
+function Kanban() {
     return (
-        <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={
-                "inline-flex w-full items-center justify-center gap-2.5 rounded-xl border-2 border-dotted px-6 py-3.5 text-sm font-medium text-white transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:w-auto sm:py-3 " +
-                (primary
-                    ? "border-[#e94f25] bg-[#e94f25]/20 hover:bg-[#e94f25]/45"
-                    : "border-white/45 bg-white/5 hover:border-white/80 hover:bg-white/10")
-            }
-            style={{
-                ...(primary ? dotGrid("rgba(233,79,37,0.85)", 4, 1.5) : dotGrid("rgba(243,239,232,0.30)", 4, 1.1)),
-                textShadow: "0 1px 8px rgba(0,0,0,0.75)",
-            }}
-        >
-            {children}
-            {icon}
-        </a>
-    );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Browser frame + tilt                                               */
-/* ------------------------------------------------------------------ */
-function BrowserFrame({ url, children, ratio = "aspect-[4/3]" }) {
-    return (
-        <div className="relative overflow-hidden rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#101010] sm:rounded-2xl">
-            <div className="flex items-center gap-2 border-b-2 border-dotted border-[#3a3a3a] bg-[#171717] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-                <div className="flex shrink-0 gap-1.5" aria-hidden="true">
-                    {[0, 1, 2].map((i) => (
-                        <span key={i} className="block h-2 w-2 rounded-full bg-white/20" />
-                    ))}
-                </div>
-                <div
-                    className="mx-auto flex h-6 min-w-0 flex-1 items-center justify-center rounded-full bg-[#0a0a0a] px-3 text-[10px] tracking-[0.08em] text-white/60 sm:max-w-[360px] sm:tracking-[0.12em]"
-                    style={{ ...MONO, ...dotGrid("rgba(243,239,232,0.10)", 4, 0.9) }}
-                >
-                    <span className="block min-w-0 truncate">{url}</span>
-                </div>
-                {/* keeps the url bar centred against the dots – hidden on phones to give the url more room */}
-                <span className="hidden w-[34px] shrink-0 sm:block" aria-hidden="true" />
-            </div>
-            {/* taller (near square) on phones so the previews can use bigger, readable text */}
-            <div className={"relative overflow-hidden sm:aspect-[16/10] " + ratio}>{children}</div>
-        </div>
-    );
-}
-
-// the frame leans a few degrees towards the mouse (ignored on touch screens)
-function Tilt({ children }) {
-    const ref = useRef(null);
-    const rx = useMotionValue(0);
-    const ry = useMotionValue(0);
-    const srx = useSpring(rx, { stiffness: 140, damping: 18, mass: 0.5 });
-    const sry = useSpring(ry, { stiffness: 140, damping: 18, mass: 0.5 });
-
-    const onMove = (e) => {
-        if (e.pointerType !== "mouse" || !ref.current) return;
-        const r = ref.current.getBoundingClientRect();
-        ry.set(((e.clientX - r.left) / r.width - 0.5) * 7);
-        rx.set(-((e.clientY - r.top) / r.height - 0.5) * 7);
-    };
-    const reset = () => {
-        rx.set(0);
-        ry.set(0);
-    };
-
-    return (
-        <div style={{ perspective: 1200 }}>
-            <motion.div
-                ref={ref}
-                onPointerMove={onMove}
-                onPointerLeave={reset}
-                onPointerCancel={reset}
-                style={{ rotateX: srx, rotateY: sry }}
-                className="will-change-transform"
-            >
-                {children}
-            </motion.div>
-        </div>
-    );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Preview 1 – kanban board: cards keep moving between stages         */
-/* ------------------------------------------------------------------ */
-function KanbanPreview({ active }) {
-    const [cols, setCols] = useState(INITIAL_COLS);
-    const step = useRef(0);
-
-    useEffect(() => {
-        if (!active) return;
-        const id = setInterval(() => {
-            const from = step.current % 3;
-            const to = (from + 1) % 3;
-            step.current += 1;
-            setCols((prev) => {
-                if (!prev[from].length) return prev;
-                const next = prev.map((c) => [...c]);
-                next[to].push(next[from].shift());
-                return next;
-            });
-        }, 1700);
-        return () => clearInterval(id);
-    }, [active]);
-
-    return (
-        <LayoutGroup>
-            <div className="grid h-full grid-cols-3 gap-1.5 p-2 sm:gap-3 sm:p-5">
-                {COLUMNS.map((col, ci) => (
-                    <div
-                        key={col.full}
-                        className="flex min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-[#141414] p-1.5 sm:gap-2.5 sm:rounded-xl sm:p-2.5"
-                        style={dotGrid("rgba(243,239,232,0.07)", 8, 1)}
-                    >
-                        <div className="flex items-center justify-between gap-1 px-0.5 sm:px-1" style={MONO}>
-                            <span className="min-w-0 truncate text-[9px] tracking-[0.08em] text-white/65 sm:text-[10px] sm:tracking-[0.2em]">
-                                <span className="sm:hidden">{col.short}</span>
-                                <span className="hidden sm:inline">{col.full}</span>
-                            </span>
-                            <span className="text-[9px] text-white/45 sm:text-[10px]">{cols[ci].length}</span>
+        <div className="pv pv-kanban">
+            {[
+                ["To do", 3],
+                ["In progress", 2],
+                ["Done", 2],
+            ].map(([name, n], c) => (
+                <div className="kb-col" key={name}>
+                    <i className="kb-head" />
+                    {Array.from({ length: n }).map((_, i) => (
+                        <div
+                            key={i}
+                            className={`kb-card ${c === 0 && i === 0 ? "kb-move" : ""}`}
+                        >
+                            <i /><i />
                         </div>
-                        {cols[ci].map((id) => (
-                            <motion.div
-                                key={id}
-                                layoutId={`task-${id}`}
-                                transition={{ type: "spring", stiffness: 260, damping: 28 }}
-                                className="min-w-0 rounded-md border border-dotted border-[#4a4a4a] bg-[#1f1f1f] p-1.5 sm:rounded-lg sm:p-2.5"
-                            >
-                                <p
-                                    className={
-                                        "break-words text-[10px] leading-snug sm:text-xs " +
-                                        (ci === 2 ? "text-white/60 line-through" : "text-white/85")
-                                    }
-                                >
-                                    {TASKS[id].t}
-                                </p>
-                                <span
-                                    className="mt-1 inline-block max-w-full truncate rounded-full bg-[#e94f25]/15 px-1.5 py-0.5 text-[7px] tracking-[0.1em] text-[#e94f25] sm:mt-2 sm:text-[9px] sm:tracking-[0.15em]"
-                                    style={MONO}
-                                >
-                                    {TASKS[id].tag}
-                                </span>
-                            </motion.div>
-                        ))}
-                    </div>
-                ))}
-            </div>
-        </LayoutGroup>
-    );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Preview 2 – marketplace feed: listings scroll past                 */
-/* ------------------------------------------------------------------ */
-function FeedList() {
-    return (
-        <div className="flex flex-col gap-2.5 pb-2.5">
-            {FEED.map((f) => (
-                <div
-                    key={f.n}
-                    className="flex items-center gap-3 rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#191919] p-3"
-                >
-                    <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1a0a05] text-sm text-white"
-                        style={{ ...SERIF, ...dotGrid("rgba(233,79,37,0.9)", 3.5, 1.3), textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}
-                        aria-hidden="true"
-                    >
-                        {f.n[0]}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs text-white/90 sm:text-sm">{f.n}</p>
-                        <p className="truncate text-[9px] tracking-[0.1em] text-white/60 sm:text-[10px] sm:tracking-[0.12em]" style={MONO}>
-                            {f.q} · {f.loc}
-                        </p>
-                    </div>
-                    <p className="shrink-0 text-[11px] text-[#e94f25] sm:text-xs" style={MONO}>
-                        {f.p}
-                    </p>
+                    ))}
                 </div>
             ))}
         </div>
     );
 }
 
-function FeedPreview({ active }) {
+function Browser() {
     return (
-        <div className="flex h-full flex-col gap-3 p-3 sm:p-5">
-            <div
-                className="flex h-9 shrink-0 items-center rounded-full border border-dotted border-[#4a4a4a] bg-[#1f1f1f] px-4 text-[10px] tracking-[0.1em] text-white/55 sm:h-8 sm:tracking-[0.12em]"
-                style={{ ...MONO, ...dotGrid("rgba(243,239,232,0.08)", 4, 0.9) }}
-            >
-                Search crops, markets…
+        <div className="pv pv-browser">
+            <div className="br-nav"><i /><i /><i /><i /></div>
+            <div className="br-hero">
+                <i className="br-h1" />
+                <i className="br-h2" />
+                <b className="br-btn" />
             </div>
-            <div className="flex shrink-0 gap-1.5 overflow-hidden sm:gap-2" style={MONO}>
-                {["All", "Vegetables", "Fruits", "Grains"].map((c, i) => (
-                    <span
-                        key={c}
-                        className={
-                            "whitespace-nowrap rounded-full border border-dotted px-2.5 py-1 text-[9px] tracking-[0.1em] sm:text-[10px] sm:tracking-[0.15em] " +
-                            (i === 0 ? "border-[#e94f25] bg-[#e94f25]/25 text-white" : "border-[#4a4a4a] text-white/60")
-                        }
-                        style={i === 0 ? dotGrid("rgba(233,79,37,0.8)", 4, 1.2) : undefined}
-                    >
-                        {c}
-                    </span>
-                ))}
-            </div>
-            <div
-                className="relative min-h-0 flex-1 overflow-hidden"
-                style={{
-                    WebkitMaskImage: "linear-gradient(to bottom, transparent, #000 10%, #000 85%, transparent)",
-                    maskImage: "linear-gradient(to bottom, transparent, #000 10%, #000 85%, transparent)",
-                }}
-            >
-                <motion.div
-                    animate={active ? { y: ["0%", "-50%"] } : { y: "0%" }}
-                    transition={active ? { duration: 20, repeat: Infinity, ease: "linear" } : { duration: 0 }}
-                >
-                    <FeedList />
-                    <FeedList />
-                </motion.div>
-            </div>
+            <div className="br-row"><i /><i /><i /></div>
         </div>
     );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Preview 3 – live site: a page that scrolls itself                  */
-/* ------------------------------------------------------------------ */
-// `dot` = fill the bar with a field of dots of that colour instead of a flat colour
-const Bar = ({ className = "", dot }) => (
-    <span className={"block rounded-full " + className} style={dot ? dotGrid(dot, 3, 0.95) : undefined} />
-);
-
-function SitePreview({ active }) {
+function Feed() {
     return (
-        <motion.div
-            animate={active ? { y: ["0%", "-56%", "0%"] } : { y: "0%" }}
-            transition={active ? { duration: 18, repeat: Infinity, ease: "easeInOut" } : { duration: 0 }}
-            className="px-4 pb-10 pt-4 sm:px-7"
-        >
-            {/* nav */}
-            <div className="flex items-center justify-between">
-                <Bar className="h-3 w-14" dot="rgba(255,255,255,0.8)" />
-                <div className="flex items-center gap-3">
-                    <Bar className="h-1.5 w-8 bg-white/25" />
-                    <Bar className="h-1.5 w-8 bg-white/25" />
-                    <Bar className="hidden h-1.5 w-8 bg-white/25 sm:block" />
-                    <Bar className="h-5 w-14" dot={ORANGE} />
+        <div className="pv pv-feed">
+            {[0, 1, 2].map((i) => (
+                <div className="fd-row" key={i}>
+                    <b className="fd-img" />
+                    <div className="fd-text"><i /><i /></div>
+                    <em className="fd-price" />
                 </div>
-            </div>
-
-            {/* hero */}
-            <div className="mt-8 sm:mt-10">
-                <Bar className="h-2 w-20" dot="rgba(233,79,37,0.8)" />
-                <Bar className="mt-4 h-4 w-[78%] rounded-md sm:h-5" dot="rgba(243,239,232,0.9)" />
-                <Bar className="mt-2.5 h-4 w-[52%] rounded-md sm:h-5" dot="rgba(243,239,232,0.9)" />
-                <Bar className="mt-5 h-1.5 w-[62%] bg-white/20" />
-                <Bar className="mt-2 h-1.5 w-[48%] bg-white/20" />
-                <div className="mt-5 flex gap-2.5">
-                    <Bar className="h-6 w-20" dot="rgba(255,255,255,0.9)" />
-                    <Bar className="h-6 w-20 border border-dotted border-[#5a5a5a]" />
-                </div>
-            </div>
-
-            {/* feature cards */}
-            <div className="mt-10 grid grid-cols-3 gap-2 sm:gap-3">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="rounded-xl border-2 border-dotted border-[#3a3a3a] bg-[#191919] p-2.5 sm:p-3">
-                        <Bar className="h-5 w-5" dot="rgba(233,79,37,0.8)" />
-                        <Bar className="mt-3 h-1.5 w-[70%] bg-white/55" />
-                        <Bar className="mt-2 h-1 w-full bg-white/15" />
-                        <Bar className="mt-1.5 h-1 w-[80%] bg-white/15" />
-                    </div>
-                ))}
-            </div>
-
-            {/* wide feature */}
-            <div
-                className="mt-8 h-28 rounded-xl border-2 border-dotted border-[#e94f25]/50 bg-[#e94f25]/10 sm:h-36"
-                style={dotGrid("rgba(233,79,37,0.45)", 6, 1.5)}
-            />
-
-            {/* stats */}
-            <div className="mt-8 grid grid-cols-3 gap-3">
-                {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex flex-col items-center">
-                        <Bar className="h-4 w-10 rounded-md" dot="rgba(243,239,232,0.85)" />
-                        <Bar className="mt-2 h-1 w-12 bg-white/20" />
-                    </div>
-                ))}
-            </div>
-
-            {/* footer */}
-            <div className="mt-10 flex items-center justify-between border-t-2 border-dotted border-[#3a3a3a] pt-4">
-                <Bar className="h-2.5 w-12 bg-white/40" />
-                <div className="flex gap-2">
-                    <Bar className="h-1.5 w-8 bg-white/20" />
-                    <Bar className="h-1.5 w-8 bg-white/20" />
-                </div>
-            </div>
-        </motion.div>
+            ))}
+        </div>
     );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Preview 4 – event booking: seats get picked, then confirmed        */
-/* ------------------------------------------------------------------ */
-const SEAT_COLS = 8;
-const SEAT_ROWS = 5;
-const TAKEN = new Set([2, 3, 11, 12, 20, 21, 27, 33, 34]);
-const PICK_ORDER = [18, 19, 26, 25]; // free seats, picked one after another
-const SEAT_PRICE = 499;
+function Booking() {
+    const taken = new Set([2, 3, 9, 14, 15, 20]);
+    const picked = new Set([10, 11]);
+    return (
+        <div className="pv pv-booking">
+            <div className="bk-screen" />
+            <div className="bk-seats">
+                {Array.from({ length: 24 }).map((_, i) => (
+                    <span
+                        key={i}
+                        className={
+                            taken.has(i) ? "is-taken" : picked.has(i) ? "is-picked" : i === 12 ? "is-next" : ""
+                        }
+                    />
+                ))}
+            </div>
+            <b className="bk-confirm" />
+        </div>
+    );
+}
 
-function BookingPreview({ active }) {
-    // 0..PICK_ORDER.length = seats picked so far, one more step = confirmed
-    const [step, setStep] = useState(0);
+const PREVIEWS = { kanban: Kanban, browser: Browser, feed: Feed, booking: Booking };
 
+/* ---------- section ---------- */
+
+export default function Work({ projects = PROJECTS }) {
+    const gridRef = useRef(null);
+
+    // cards settle in once as they enter the viewport
     useEffect(() => {
-        if (!active) return;
-        const id = setInterval(() => setStep((p) => (p > PICK_ORDER.length ? 0 : p + 1)), 950);
-        return () => clearInterval(id);
-    }, [active]);
-
-    const confirmed = step > PICK_ORDER.length;
-    const selected = new Set(PICK_ORDER.slice(0, Math.min(step, PICK_ORDER.length)));
-    const n = selected.size;
+        const cards = gridRef.current?.querySelectorAll(".work-card") ?? [];
+        if (!("IntersectionObserver" in window)) {
+            cards.forEach((c) => c.classList.add("is-in"));
+            return;
+        }
+        const io = new IntersectionObserver(
+            (entries) =>
+                entries.forEach((e) => {
+                    if (e.isIntersecting) {
+                        e.target.classList.add("is-in");
+                        io.unobserve(e.target);
+                    }
+                }),
+            { threshold: 0.15 }
+        );
+        cards.forEach((c) => io.observe(c));
+        return () => io.disconnect();
+    }, [projects]);
 
     return (
-        // phones: event info + summary on top, seat map underneath · sm and up: side by side
-        <div className="flex h-full flex-col gap-4 p-3.5 sm:flex-row sm:gap-6 sm:p-5">
-            {/* event + summary */}
-            <div className="flex items-end justify-between gap-3 sm:w-[40%] sm:flex-col sm:items-stretch">
-                <div className="min-w-0 flex-1 sm:flex-none">
-                    <p className="text-[9px] tracking-[0.15em] text-[#e94f25] sm:text-[10px] sm:tracking-[0.2em]" style={MONO}>
-                        SAT · 7:30 PM
-                    </p>
-                    <p className="mt-2 leading-[0.95] [font-size:clamp(1.5rem,7vw,2.5rem)] sm:[font-size:clamp(1.3rem,3.2vw,2.5rem)]" style={SERIF}>
-                        <span style={textInk(3)}>Live in </span>
-                        <span className="italic" style={textAccent(3)}>concert</span>
-                    </p>
-                    <p className="mt-2 text-[10px] text-white/65 sm:text-xs">Open Air Arena</p>
-                </div>
-                <div className="w-[42%] shrink-0 sm:w-auto">
-                    <div
-                        className="mb-2 flex justify-between text-[9px] tracking-[0.1em] text-white/65 sm:text-[10px] sm:tracking-[0.15em]"
-                        style={MONO}
-                    >
-                        <span>
-                            {n} {n === 1 ? "SEAT" : "SEATS"}
-                        </span>
-                        <span>₹ {n * SEAT_PRICE}</span>
-                    </div>
-                    <motion.div
-                        animate={{
-                            backgroundColor: confirmed ? "rgba(233,79,37,0.6)" : "rgba(255,255,255,0.14)",
-                            borderColor: confirmed ? "#e94f25" : "rgba(255,255,255,0.55)",
-                        }}
-                        transition={{ duration: 0.35 }}
-                        className="rounded-full border-2 border-dotted py-1.5 text-center text-[11px] font-medium text-white sm:text-xs"
-                        style={{ ...dotGrid("rgba(243,239,232,0.3)", 4, 1.1), textShadow: "0 1px 6px rgba(0,0,0,0.8)" }}
-                    >
-                        {confirmed ? "Booked" : "Book now"}
-                    </motion.div>
-                </div>
-            </div>
+        <section id="projects" className="work">
+            <style>{css}</style>
 
-            {/* seat map – every seat is a dot */}
-            <div className="flex min-h-0 flex-1 flex-col justify-center">
-                <div className="mb-1.5 h-1 rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-                <p className="mb-3 text-center text-[8px] tracking-[0.3em] text-white/50 sm:text-[9px]" style={MONO}>
-                    STAGE
+            <div className="work-inner">
+                <h2 className="work-title">Selected projects</h2>
+                <p className="work-intro">
+                    A few things I have designed and built, from a client website to full products.
                 </p>
-                <div className="mx-auto grid w-full max-w-[280px] grid-cols-8 gap-1.5 sm:max-w-none sm:gap-2">
-                    {Array.from({ length: SEAT_COLS * SEAT_ROWS }, (_, i) => {
-                        const taken = TAKEN.has(i);
-                        const sel = selected.has(i);
+
+                <div className="work-grid" ref={gridRef}>
+                    {projects.map((p, i) => {
+                        const Preview = PREVIEWS[p.kind] ?? Browser;
                         return (
-                            <motion.span
-                                key={i}
-                                animate={{
-                                    backgroundColor: sel ? "#e94f25" : taken ? "#3a3a3a" : "#121212",
-                                    scale: sel ? [1, 1.3, 1] : 1,
-                                }}
-                                transition={{ duration: 0.35 }}
-                                className={
-                                    "block aspect-square rounded-full border " +
-                                    (sel ? "border-[#e94f25]" : taken ? "border-transparent" : "border-[#4a4a4a]")
-                                }
-                            />
+                            <article
+                                className="work-card"
+                                key={p.id}
+                                style={{ transitionDelay: `${(i % 2) * 0.12}s` }}
+                            >
+                                <div className="work-frame" aria-hidden="true">
+                                    <div className="work-bar">
+                                        <span /><span /><span />
+                                        <code>{p.display}</code>
+                                    </div>
+                                    <div className="work-stage">
+                                        <Preview />
+                                    </div>
+                                </div>
+
+                                <div className="work-body">
+                                    <p className="work-label">{p.label}</p>
+                                    <h3 className="work-name">{p.title}</h3>
+                                    <p className="work-blurb">{p.blurb}</p>
+
+                                    <ul className="work-tags">
+                                        {p.tags.map((t) => (
+                                            <li key={t}>{t}</li>
+                                        ))}
+                                    </ul>
+
+                                    <div className="work-links">
+                                        {p.url && (
+                                            <a
+                                                href={p.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="work-btn work-btn-primary"
+                                            >
+                                                <span>Visit live site</span>
+                                            </a>
+                                        )}
+                                        {p.github && (
+                                            <a
+                                                href={p.github}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`work-btn ${p.url ? "work-btn-ghost" : "work-btn-primary"}`}
+                                            >
+                                                <span>View on GitHub</span>
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            </article>
                         );
                     })}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// phone-only frame shapes (full class names so Tailwind can see them)
-const RATIOS = { kanban: "aspect-[1/1]", booking: "aspect-[1/1]" };
-
-const PREVIEWS = { kanban: KanbanPreview, feed: FeedPreview, browser: SitePreview, booking: BookingPreview };
-
-/* ------------------------------------------------------------------ */
-/*  One project row                                                    */
-/* ------------------------------------------------------------------ */
-function ProjectRow({ project, index }) {
-    const ref = useRef(null);
-    // previews only animate while the row is on screen
-    const inView = useInView(ref, { margin: "-10% 0px -10% 0px" });
-    const wide = useIsWide();
-    const Preview = PREVIEWS[project.kind];
-    const flip = index % 2 === 1;
-
-    return (
-        <article ref={ref} className="grid items-center gap-5 sm:gap-8 lg:grid-cols-12 lg:gap-14">
-            <div data-reveal="media" className={"min-w-0 lg:col-span-7 " + (flip ? "lg:order-2" : "")}>
-                <Tilt>
-                    <BrowserFrame url={project.display} ratio={RATIOS[project.kind]}>
-                        <Preview active={inView} />
-                    </BrowserFrame>
-                </Tilt>
-            </div>
-
-            <div data-reveal="text" className={"min-w-0 lg:col-span-5 " + (flip ? "lg:order-1" : "")}>
-                <p className="mb-3 text-[10px] tracking-[0.2em] text-[#e94f25] sm:mb-4 sm:text-[11px] sm:tracking-[0.25em]" style={MONO}>
-                    {project.label}
-                </p>
-                <h3
-                    className="break-words leading-[0.95] tracking-[-0.02em] [font-size:clamp(2.4rem,10vw,3.6rem)] sm:[font-size:clamp(2.6rem,6vw,5rem)]"
-                    style={SERIF}
-                >
-                    <span style={textInk(wide ? 4.5 : 3.5)}>{project.title}</span>
-                </h3>
-                <p className="mt-4 max-w-[40ch] text-[15px] leading-relaxed text-[#a8a8a8] sm:mt-5 sm:text-lg">
-                    {project.blurb}
-                </p>
-
-                <ul className="mt-5 flex flex-wrap gap-2 sm:mt-6" style={MONO}>
-                    {project.tags.map((t) => (
-                        <li
-                            key={t}
-                            className="rounded-full border-2 border-dotted border-[#3a3a3a] px-3 py-1 text-[10px] tracking-[0.14em] text-white/60 sm:tracking-[0.18em]"
-                        >
-                            {t}
-                        </li>
-                    ))}
-                </ul>
-
-                {(project.url || project.github) && (
-                    <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap">
-                        {project.url && (
-                            <LinkButton href={project.url} primary icon={<ArrowIcon />}>
-                                Visit site
-                            </LinkButton>
-                        )}
-                        {project.github && (
-                            // no live site? then the code link is the main button
-                            <LinkButton href={project.github} primary={!project.url} icon={<GithubIcon />}>
-                                GitHub
-                            </LinkButton>
-                        )}
-                    </div>
-                )}
-            </div>
-        </article>
-    );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Work section                                                       */
-/* ------------------------------------------------------------------ */
-export default function Work() {
-    const rootRef = useRef(null);
-    const wide = useIsWide();
-
-    // same fonts as the Hero – only added once
-    useEffect(() => {
-        const id = "hero-fonts";
-        if (document.getElementById(id)) return;
-        const link = document.createElement("link");
-        link.id = id;
-        link.rel = "stylesheet";
-        link.href =
-            "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap";
-        document.head.appendChild(link);
-    }, []);
-
-    // scroll reveals
-    useEffect(() => {
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        const ctx = gsap.context(() => {
-            gsap.utils.toArray("[data-reveal='media']").forEach((el) => {
-                gsap.fromTo(
-                    el,
-                    { clipPath: "inset(14% 10% 14% 10% round 24px)", opacity: 0, y: 60 },
-                    {
-                        clipPath: "inset(0% 0% 0% 0% round 0px)",
-                        opacity: 1,
-                        y: 0,
-                        duration: 1.3,
-                        ease: "expo.out",
-                        clearProps: "clipPath",
-                        // lower trigger point so tall stacked cards on phones still reveal reliably
-                        scrollTrigger: { trigger: el, start: "top 90%", once: true },
-                    }
-                );
-            });
-            gsap.utils.toArray("[data-reveal='text']").forEach((el) => {
-                gsap.from(el.children, {
-                    opacity: 0,
-                    y: 26,
-                    duration: 0.9,
-                    ease: "power3.out",
-                    stagger: 0.1,
-                    scrollTrigger: { trigger: el, start: "top 90%", once: true },
-                });
-            });
-        }, rootRef);
-        return () => ctx.revert();
-    }, []);
-
-    return (
-        <section
-            ref={rootRef}
-            id="work"
-            className="relative w-full overflow-hidden bg-[#080808] text-white"
-            style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
-        >
-            {/* faint dot field behind everything (replaces the old grain), fading in and out at the edges */}
-            <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0"
-                style={{
-                    ...dotGrid("rgba(243,239,232,0.08)", 22, 1.2),
-                    WebkitMaskImage: "linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent)",
-                    maskImage: "linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent)",
-                }}
-            />
-
-            <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 py-12 sm:px-5 sm:py-24 md:py-36 lg:px-10">
-                {/* header */}
-                <div
-                    data-reveal="text"
-                    className="mb-10 flex flex-col gap-5 sm:mb-16 sm:gap-6 md:mb-28 md:flex-row md:items-end md:justify-between"
-                >
-                    <div>
-                        <p className="mb-4 text-[10px] tracking-[0.2em] text-[#e94f25] sm:mb-5 sm:text-[11px] sm:tracking-[0.25em]" style={MONO}>
-                            SELECTED WORK
-                        </p>
-                        <h2
-                            className="leading-[0.95] tracking-[-0.02em] [font-size:clamp(2.6rem,12vw,4rem)] sm:[font-size:clamp(2.8rem,8vw,7.5rem)]"
-                            style={SERIF}
-                        >
-                            <span style={textInk(wide ? 5.5 : 3.5)}>Things I’ve </span>
-                            <span className="italic" style={textAccent(wide ? 5.5 : 3.5)}>shipped</span>
-                        </h2>
-                    </div>
-                    <p className="max-w-[34ch] text-[15px] leading-relaxed text-[#a8a8a8] sm:text-lg">
-                        Products I designed, built and launched, from the first commit to real users.
-                    </p>
-                </div>
-
-                {/* projects */}
-                <div>
-                    {PROJECTS.map((p, i) => (
-                        <div
-                            key={p.id}
-                            className={
-                                i > 0
-                                    ? "mt-10 border-t-2 border-dotted border-[#333] pt-10 sm:mt-20 sm:pt-20 md:mt-32 md:pt-32"
-                                    : ""
-                            }
-                        >
-                            <ProjectRow project={p} index={i} />
-                        </div>
-                    ))}
                 </div>
             </div>
         </section>
     );
 }
+
+/* Colors, easings and the font come from index.css. */
+const css = `
+.work {
+  font-family: inherit;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 110px 36px;
+  box-sizing: border-box;
+  transition: background .5s ease, color .5s ease;
+}
+.work-inner { width: min(100%, 1100px); margin: 0 auto; }
+
+.work-title {
+  margin: 0;
+  font-size: clamp(2rem, 5.5vw, 3.25rem);
+  font-weight: 700; letter-spacing: -.04em; line-height: 1.08;
+}
+.work-intro {
+  margin: 18px 0 0;
+  max-width: 46ch;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ---------- grid + cards ---------- */
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  margin-top: 56px;
+}
+.work-card {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  overflow: hidden;
+  opacity: 0; transform: translateY(26px);
+  transition: opacity .9s var(--ease-drop), transform .9s var(--ease-drop),
+              border-color .5s ease, background .5s ease;
+}
+.work-card.is-in { opacity: 1; transform: none; }
+.work-card:hover { border-color: var(--navy); }
+
+/* ---------- browser-style frame ---------- */
+.work-frame { border-bottom: 1px solid var(--line); background: var(--mist); transition: background .5s ease; }
+.work-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  transition: background .5s ease;
+}
+.work-bar span { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.work-bar code {
+  margin-left: 10px; min-width: 0;
+  font: inherit; font-size: .75rem; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.work-stage { padding: 22px; height: 220px; box-sizing: border-box; overflow: hidden; }
+
+/* ---------- text ---------- */
+.work-body { display: flex; flex-direction: column; flex: 1; padding: 26px 26px 28px; }
+.work-label { margin: 0; font-size: .75rem; font-weight: 600; letter-spacing: .06em; color: var(--navy); }
+.work-name { margin: 8px 0 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+.work-blurb { margin: 12px 0 0; font-size: .98rem; line-height: 1.6; color: var(--muted); }
+
+.work-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; padding: 0; list-style: none; }
+.work-tags li {
+  padding: 5px 12px;
+  font-size: .8rem; font-weight: 500; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px;
+}
+
+/* ---------- buttons (same rising water as the hero) ---------- */
+.work-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: auto; padding-top: 26px; }
+.work-btn {
+  position: relative; isolation: isolate; overflow: hidden;
+  display: inline-block;
+  padding: 12px 22px;
+  font: inherit; font-size: .9rem; font-weight: 600;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: color .5s ease, border-color .5s ease;
+}
+.work-btn::before {
+  content: ""; position: absolute; z-index: -1;
+  left: 50%; top: 100%;
+  width: 240%; aspect-ratio: 1;
+  border-radius: 46% 54% 50% 50%;
+  transform: translate(-50%, 0);
+  transition: transform .9s var(--ease-water), border-radius .9s var(--ease-water);
+}
+.work-btn:hover::before,
+.work-btn:focus-visible::before { transform: translate(-50%, -64%); border-radius: 50%; }
+
+.work-btn-primary { background: var(--navy); color: #fff; border: 1px solid var(--navy); }
+.work-btn-primary::before { background: var(--water-dark); }
+.work-btn-primary:hover,
+.work-btn-primary:focus-visible { border-color: var(--water-dark); }
+
+.work-btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink); }
+.work-btn-ghost::before { background: var(--navy); }
+.work-btn-ghost:hover,
+.work-btn-ghost:focus-visible { color: #fff; border-color: var(--navy); }
+
+.work-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
+
+/* ==========================================================
+   Previews (drawn with CSS only)
+   ========================================================== */
+.pv { width: 100%; height: 100%; }
+.pv i, .pv b, .pv em { display: block; font-style: normal; }
+
+/* kanban */
+.pv-kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: start; }
+.kb-col { display: flex; flex-direction: column; gap: 8px; }
+.kb-head { height: 8px; width: 55%; border-radius: 4px; background: var(--muted); opacity: .5; margin-bottom: 2px; }
+.kb-card {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+  transition: transform .9s var(--ease-drop), border-color .5s ease;
+}
+.kb-card i { height: 6px; border-radius: 3px; background: var(--line); }
+.kb-card i:first-child { width: 80%; background: var(--muted); opacity: .45; }
+.kb-card i:last-child { width: 50%; }
+.work-card:hover .kb-move { transform: translateX(calc(100% + 10px)); border-color: var(--navy); }
+
+/* browser */
+.pv-browser { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); padding: 12px; box-sizing: border-box; }
+.br-nav { display: flex; gap: 8px; justify-content: flex-end; }
+.br-nav i { width: 28px; height: 6px; border-radius: 3px; background: var(--line); }
+.br-nav i:first-child { margin-right: auto; width: 40px; background: var(--muted); opacity: .5; }
+.br-hero { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
+.br-h1 { width: 62%; height: 14px; border-radius: 4px; background: var(--ink); opacity: .85; }
+.br-h2 { width: 38%; height: 8px; border-radius: 4px; background: var(--line); }
+.br-btn { width: 64px; height: 20px; margin-top: 4px; border-radius: 6px; background: var(--navy); transition: width .7s var(--ease-drop); }
+.work-card:hover .br-btn { width: 92px; }
+.br-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: auto; }
+.br-row i { height: 34px; border-radius: 6px; background: var(--mist); border: 1px solid var(--line); }
+
+/* feed */
+.pv-feed { display: flex; flex-direction: column; gap: 10px; }
+.fd-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
+  transition: transform .7s var(--ease-drop), border-color .5s ease;
+}
+.fd-img { width: 40px; height: 40px; flex: none; border-radius: 8px; background: var(--mist); border: 1px solid var(--line); }
+.fd-text { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.fd-text i { height: 6px; border-radius: 3px; background: var(--line); }
+.fd-text i:first-child { width: 70%; background: var(--muted); opacity: .45; }
+.fd-text i:last-child { width: 40%; }
+.fd-price { width: 44px; height: 18px; border-radius: 999px; background: var(--navy); opacity: .9; }
+.work-card:hover .fd-row:nth-child(1) { transform: translateX(6px); border-color: var(--navy); }
+.work-card:hover .fd-row:nth-child(2) { transform: translateX(3px); }
+
+/* booking */
+.pv-booking { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.bk-screen { width: 70%; height: 6px; border-radius: 6px; background: var(--muted); opacity: .45; }
+.bk-seats { display: grid; grid-template-columns: repeat(8, 1fr); gap: 7px; width: 82%; }
+.bk-seats span {
+  aspect-ratio: 1; border-radius: 5px 5px 3px 3px;
+  border: 1px solid var(--line); background: var(--paper);
+  transition: background .5s ease, border-color .5s ease, transform .6s var(--ease-drop);
+}
+.bk-seats .is-taken { background: var(--line); }
+.bk-seats .is-picked { background: var(--navy); border-color: var(--navy); }
+.work-card:hover .bk-seats .is-next { background: var(--navy); border-color: var(--navy); transform: scale(1.12); }
+.bk-confirm { width: 96px; height: 20px; margin-top: auto; border-radius: 6px; background: var(--navy); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 860px) {
+  .work-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .work { padding: 84px 24px; }
+}
+@media (max-width: 420px) {
+  .work-btn { width: 100%; text-align: center; }
+  .work-stage { height: 200px; padding: 16px; }
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .work, .work-card { transition-duration: .01s !important; transition-delay: 0s !important; }
+  .work-card { opacity: 1; transform: none; }
+  .work-btn, .work-btn::before, .pv * { transition-duration: .01s !important; }
+}
+`;
